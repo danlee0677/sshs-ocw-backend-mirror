@@ -7,4 +7,4 @@ export const lessonSchema = new Schema({
   order:     { type: Number, default: 0 }
 }, { timestamps: true });
 
-export default mongoose.model('lesson', lessonSchema);
+export const LessonModel = mongoose.model('lesson', lessonSchema);
