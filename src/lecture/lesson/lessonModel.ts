@@ -1,9 +1,10 @@
 import mongoose, { Schema } from 'mongoose';
 
-export const lessonSchema = new Schema({
+const lessonSchema = new Schema({
+  createdBy: { type: Schema.Types.ObjectId, ref: 'user', required: true },
   module:   { type: Schema.Types.ObjectId, ref: 'module', required: true },
   title:     { type: String, required: true },
-  content:   { type: String },    // or store rich text, markdown, video URL, etc.
+  content:   { type: String, required: true },    // or store rich text, markdown, video URL, etc.
   order:     { type: Number, default: 0 }
 }, { timestamps: true });
 
