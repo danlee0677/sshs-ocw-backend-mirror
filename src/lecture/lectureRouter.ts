@@ -1,5 +1,5 @@
 import { Context, Next } from 'koa';
-import Router from 'koa-router';
+import Router from '@koa/router';
 import { LessonModel } from './lesson/lessonModel';
 import { SubjectModel } from './subject/subjectModel';
 import { UserModel } from '../user/userModel';
@@ -144,10 +144,15 @@ lectureRouter.delete('/api/modules/:moduleId', async (ctx: Context, next: Next) 
 
 // get single lesson content
 lectureRouter.get('/api/lessons/:lessonId', async (ctx: Context, next: Next) => {
+  const lessonId = ctx.params.lessonId;
+  ctx.assert(mongoose.isValidObjectId(lessonId), 400);
+
   const lesson = await LessonModel.findOne({ _id: ctx.params.lessonId })
-                                  .populate('createdBy', ['name', '_id']).exec();
-  const filteredLesson = { title: lesson?.title,  }
-  ctx.body = lesson;
+                                  .populate('createdBy', ['_id', 'name']).exec();
+  ctx.assert(lesson, 404);
+  
+  const filteredLesson = { title: lesson.title, content: lesson.content, createdBy: "anon" }
+  ctx.body = filteredLesson;
   ctx.status = 200;
   await next()
 })

@@ -7,22 +7,33 @@
   "type": "commonjs",
   "main": "src/index.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "npx ts-node src/index.ts"
   },
   "dependencies": {
     "@koa/cors": "^5.0.0",
     "@koa/router": "^14.0.0",
     "@types/koa-bodyparser": "^4.3.12",
-    "@types/koa-router": "^7.4.8",
+    "@types/koa-passport": "^6.0.3",
+    "@types/passport-google-oauth20": "^2.0.16",
+    "@types/passport-jwt": "^4.0.1",
+    "@types/passport-kakao": "^1.0.3",
+    "@types/passport-naver": "^1.0.4",
     "dotenv": "^17.2.1",
     "koa": "^3.0.1",
     "koa-bodyparser": "^4.4.1",
-    "koa-router": "^14.0.0",
+    "koa-passport": "^6.0.0",
     "mongoose": "^8.17.0",
+    "passport-google-oauth20": "^2.0.0",
+    "passport-jwt": "^4.0.1",
+    "passport-kakao": "^1.0.1",
+    "passport-naver": "^1.0.6",
+    "passport-oauth2": "^1.8.0",
     "typescript": "^5.9.2",
     "zod": "^4.0.14"
   },
   "devDependencies": {
+    "@types/koa__router": "^12.0.4",
     "@types/node": "^24.2.1",
     "ts-node": "^10.9.2"
   }

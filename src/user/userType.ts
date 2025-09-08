@@ -1,7 +1,9 @@
 import { z } from 'zod'
 
-export const userSchema = z.object({
+const userSchema = z.object({
   google_id: z.string(),
+  kakao_id: z.string(),
+  naver_id: z.string(),
   name: z.string(),
   roles: z.array(z.string()),
 })
