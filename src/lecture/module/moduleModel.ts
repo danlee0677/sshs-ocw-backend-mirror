@@ -6,4 +6,4 @@ const moduleSchema = new Schema({
   order: { type: Number, required: true }
 }, { timestamps: true })
 
-export const ModuleModel = mongoose.model('module', moduleSchema);
+export const ModuleModel = mongoose.model('Module', moduleSchema);

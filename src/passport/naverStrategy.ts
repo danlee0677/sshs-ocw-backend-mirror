@@ -1,28 +1,45 @@
 import { Strategy as NaverStrategy, Profile } from "passport-naver";
 import passport from 'koa-passport'
 import { UserModel } from "../user/userModel";
+import { ProviderModel } from "./providerModel";
 
 export var naverStrategy = new NaverStrategy({
   clientID: process.env.NAVER_CLIENT_ID || "",
   clientSecret: process.env.NAVER_CLIENT_SECRET || "",
   callbackURL : `${process.env.BASE_API_URL || ""}/api/auth/login/naver/callback`
 }, async function (accessToken: String, refreshToken: String, profile: Profile, cb: any) {
-  const user = await UserModel.findOne({naver_id: profile.id});
-  if (user) {
-    return await cb(null, user)
-  } else {
-    try {
-      const new_user = UserModel.create({
-        name: (profile.name ? `${profile.name.givenName} ${profile.name.familyName}` : "unknown"),
-        naver_id: profile.id,
-        roles: ['user']
+  const provider = await ProviderModel.findOne({ provider: "naver", providerUserId: profile.id });
+  if (provider) {
+    const user = await UserModel.findById(provider.userId)
+    if (user) { 
+      return await cb(null, {
+        name: user.name,
+        _id: user._id,
+        roles: user.roles,
       })
-
-      console.log((await new_user).toJSON())
-
-      return await cb(null, new_user);
-    } catch (err) {
-      return cb(err);
+    } else {
+      await ProviderModel.findByIdAndDelete(provider._id);
     }
   }
+  try {
+    const new_user = await UserModel.create({
+      name: (profile.name ? `${profile.name.givenName} ${profile.name.familyName}` : "unknown"),
+      roles: ['user']
+    })
+
+    await ProviderModel.create({
+      provider: "naver",
+      providerUserId: profile.id,
+      userId: new_user._id
+    })
+
+    return await cb(null, {
+      name: new_user.name,
+      roles: new_user.roles,
+      _id: new_user._id,
+    });
+  } catch (err) {
+    return cb(err);
+  }
+  
 })

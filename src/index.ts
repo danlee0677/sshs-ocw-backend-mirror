@@ -8,8 +8,9 @@ import { naverStrategy } from './passport/naverStrategy';
 import { kakaoStrategy } from './passport/kakaoStrategy';
 import { jwtStrategy } from './passport/jwtStrategy';
 import lectureRouter from './lecture/lectureRouter';
-import userRouter from './user/userRouter';
+import authRouter from './passport/authRouter';
 import progressRouter from './progress/progressRouter';
+import userRouter from './user/userRouter';
 
 const PORT = process.env.PORT || 8080
 const MONGODB_URI = process.env.MONGODB_URI || "";
@@ -43,6 +44,8 @@ passport.use('kakao', kakaoStrategy)
 app.use(passport.initialize())
 
 app.use(lectureRouter.routes())
+app.use(authRouter.routes())
+app.use(progressRouter.routes())
 app.use(userRouter.routes())
 
 app.listen(PORT, () => {

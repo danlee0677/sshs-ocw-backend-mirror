@@ -4,4 +4,4 @@ const subjectSchema = new Schema({
   title: { type: String, required: true },
 }, { timestamps: true })
 
-export const SubjectModel = mongoose.model('subject', subjectSchema);
+export const SubjectModel = mongoose.model('Subject', subjectSchema);
