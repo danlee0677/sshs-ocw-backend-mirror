@@ -1,8 +1,8 @@
 import "koa"
-import { SafeUser } from "./user"
+import { ContextUser } from "./user"
 
 declare module "koa" {
   interface DefaultState {
-    user?: SafeUser
+    user?: ContextUser
   }
 }

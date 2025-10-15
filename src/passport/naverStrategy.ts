@@ -6,7 +6,8 @@ import { ProviderModel } from "./providerModel";
 export var naverStrategy = new NaverStrategy({
   clientID: process.env.NAVER_CLIENT_ID || "",
   clientSecret: process.env.NAVER_CLIENT_SECRET || "",
-  callbackURL : `${process.env.BASE_API_URL || ""}/api/auth/login/naver/callback`
+  callbackURL : `${process.env.BASE_API_URL || ""}/api/auth/login/naver/callback`,
+  
 }, async function (accessToken: String, refreshToken: String, profile: Profile, cb: any) {
   const provider = await ProviderModel.findOne({ provider: "naver", providerUserId: profile.id });
   if (provider) {
@@ -30,13 +31,17 @@ export var naverStrategy = new NaverStrategy({
     await ProviderModel.create({
       provider: "naver",
       providerUserId: profile.id,
-      userId: new_user._id
+      userId: new_user._id,
+      preference: [false, false, false, false, false, false],
+      studyLevel: [false, false, false, false]
     })
 
     return await cb(null, {
       name: new_user.name,
       roles: new_user.roles,
       _id: new_user._id,
+      preference: new_user.preference,
+      studyLevel: new_user.studyLevel,
     });
   } catch (err) {
     return cb(err);

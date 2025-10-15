@@ -24,7 +24,9 @@ export var kakaoStrategy = new KakaoStrategy({
     try {
       const new_user = await UserModel.create({
         name: (profile.name ? `${profile.name.givenName} ${profile.name.familyName}` : "unknown"),
-        roles: ['user']
+        roles: ['user'],
+        preference: [false, false, false, false, false, false],
+        studyLevel: [false, false, false, false],
       })
       
       await ProviderModel.create({
@@ -37,6 +39,8 @@ export var kakaoStrategy = new KakaoStrategy({
         name: new_user.name,
         roles: new_user.roles,
         _id: new_user._id,
+        preference: new_user.preference,
+        studyLevel: new_user.studyLevel,
       });
     } catch (err) {
       return await cb(err);

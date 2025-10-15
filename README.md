@@ -15,6 +15,7 @@ JWT_ALGORITHM = # default uses "HS256"
 REFRESH_JWT_SECRET =  # for signing refresh cookies
 BASE_API_URL = # something like this "http://localhost:3001"
 NODE_ENV = # production or dev, if not production, http is also allowed instead of https
+STATE_SECRET = # for signing prefs in user creation
 ```
 
 ## set CLIENT_ID and CLIENT_SECRETs

@@ -3,6 +3,7 @@ import Koa from 'koa';
 import mongoose from 'mongoose';
 import bodyParser from 'koa-bodyparser';
 import passport from 'koa-passport';
+import cors from '@koa/cors'
 import { googleStrategy } from './passport/googleStrategy';
 import { naverStrategy } from './passport/naverStrategy';
 import { kakaoStrategy } from './passport/kakaoStrategy';
@@ -28,9 +29,12 @@ mongoose.connection.once('open', () =>
 
 const app = new Koa()
 
+app.use(cors({
+  origin: (ctx) => ctx.request.header.origin || "*",
+  credentials: true,
+}));
+
 app.use(bodyParser())
-
-
 
 // passport
 

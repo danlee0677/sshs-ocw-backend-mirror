@@ -7,7 +7,7 @@ import { ModuleModel } from './module/moduleModel';
 import { subjectSchema } from './subject/subjectType';
 import { moduleSchema } from './module/moduleType';
 import { lessonSchema } from './lesson/lessonType';
-import mongoose, { isValidObjectId } from 'mongoose';
+import mongoose from 'mongoose';
 import passport from 'koa-passport'
 
 const lectureRouter = new Router();
@@ -27,8 +27,8 @@ lectureRouter.get('/api/subjects', async (ctx: Context, next: Next) => {
 lectureRouter.post('/api/subjects', 
   passport.authenticate('jwt', { session: false }), 
   async (ctx: Context, next: Next) => {
-    ctx.assert(ctx.isAuthenticated(), 401);
-    ctx.assert(ctx.state.user, 401, 'No user')
+    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
+    ctx.assert(ctx.state.user.roles.includes('admin', 403))
 
     const parsed = subjectSchema.safeParse(ctx.request.body);
     ctx.assert(parsed.success, 400);
@@ -65,9 +65,8 @@ lectureRouter.get('/api/subjects/:subjectId', async (ctx: Context, next: Next) =
 lectureRouter.delete('/api/subjects/:subjectId', 
   passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
-    ctx.assert(ctx.isAuthenticated(), 401)
-    ctx.assert(ctx.state.user, 401)
-    ctx.assert(ctx.state.user.roles.includes('admin'), 401)
+    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
+    ctx.assert(ctx.state.user.roles.includes('admin'), 403)
 
     const subjectId = ctx.params.subjectId;
     // todo: auth
@@ -118,9 +117,8 @@ lectureRouter.get('/api/modules/:moduleId', async (ctx: Context, next: Next) => 
 lectureRouter.post('/api/modules', 
   passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
-    ctx.assert(ctx.isAuthenticated(), 401);
-    ctx.assert(ctx.state.user, 401)
-    ctx.assert(ctx.state.user.roles.includes('admin'))
+    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
+    ctx.assert(ctx.state.user.roles.includes('admin'), 403)
 
     const parsed = moduleSchema.safeParse(ctx.request.body);
     
@@ -146,9 +144,8 @@ lectureRouter.post('/api/modules',
 lectureRouter.delete('/api/modules/:moduleId', 
   passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
-    ctx.assert(ctx.isAuthenticated(), 401)
-    ctx.assert(ctx.state.user, 401);
-    ctx.assert(ctx.state.user.roles.includes('admin'), 401)
+    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
+    ctx.assert(ctx.state.user.roles.includes('admin'), 403)
 
     const moduleId = ctx.params.moduleId;
 
@@ -191,9 +188,8 @@ lectureRouter.get('/api/lessons/:lessonId', async (ctx: Context, next: Next) => 
 lectureRouter.delete('/api/lessons/:lessonId',
   passport.authenticate("jwt", { session: false }),
   async (ctx: Context, next: Next) => {
-    ctx.assert(ctx.isAuthenticated(), 401);
-    ctx.assert(ctx.state.user, 404);
-    ctx.assert(ctx.state.user.roles.includes('admin'), 401);
+    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
+    ctx.assert(ctx.state.user.roles.includes('admin'), 403);
 
     const id = ctx.params.lessonId;
 
@@ -211,9 +207,8 @@ lectureRouter.delete('/api/lessons/:lessonId',
 lectureRouter.post('/api/lessons', 
   passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
-    ctx.assert(ctx.isAuthenticated(), 401);
-    ctx.assert(ctx.state.user, 404);
-    ctx.assert(ctx.state.user.roles.includes('admin'), 401);
+    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
+    ctx.assert(ctx.state.user.roles.includes('admin'), 403);
 
     const parsed = lessonSchema.safeParse(ctx.request.body);
 
