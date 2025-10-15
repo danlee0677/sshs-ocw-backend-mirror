@@ -69,9 +69,6 @@ async function decodePrefToken(ctx: Context, user: ContextUser) {
 authRouter.get("/api/auth/login/google", async function (ctx: Context, next: Next) {
     const state = parsePrefs(ctx)
     
-    // 
-    console.log(0)
-    console.log(`${process.env.BASE_API_URL || ""}/api/auth/login/google/callback`)
     return passport.authenticate(
       'google', { state: state, scope: ['profile'], session: false }
     )(ctx, next);
@@ -211,7 +208,6 @@ authRouter.post("/api/auth/logout", async function(ctx: Context, next: Next) {
 
 authRouter.get("/api/auth/verify", async function (ctx: Context, next: Next) {
   const data = ctx.get("Authorization")
-  console.log(data)
   ctx.assert(/^Bearer\s+.+/.test(data), 401)
   const token = data.replace(/^Bearer\s+/, "");
   const payload = verifyAccessToken(token)

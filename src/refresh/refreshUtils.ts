@@ -1,9 +1,8 @@
-import { AccessTokenUser, accessTokenUserSchema, ContextUser } from "../types/user";
-import { randomUUID, sign } from "crypto";
+import { accessTokenUserSchema, ContextUser } from "../types/user";
+import { randomUUID } from "crypto";
 import jwt, { Algorithm, Secret, SignOptions } from 'jsonwebtoken'
 import { RefreshModel } from "./refreshModel";
 import { Context } from "koa";
-import { z } from 'zod'
 
 const REFRESH_EXPIRE_SEC = 18 * 24 * 60 * 60;
 
