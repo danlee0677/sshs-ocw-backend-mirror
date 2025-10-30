@@ -53,10 +53,15 @@ lectureRouter.get('/api/subjects/:subjectId', async (ctx: Context, next: Next) =
                                    .sort({order: 1})
                                    .exec();
   const filteredModules = modules.map((module) => {
-    return { _id: module._id, title: module.title, createdAt: module.createdAt };
+    return { _id: module._id, title: module.title };
   })
 
-  ctx.body = filteredModules;
+  ctx.body = {
+    title: subject.title,
+    _id: subject._id,
+    contents: filteredModules
+  }
+  
   ctx.status = 200;
   await next();
 })
@@ -103,11 +108,12 @@ lectureRouter.get('/api/modules/:moduleId', async (ctx: Context, next: Next) => 
   ctx.assert(module, 404);
 
   const lessons = await LessonModel.find({ module: module._id }).exec();
+
   const filteredLessons = lessons.map((lesson) => {
-    return { title: lesson.title, _id: lesson._id, module: lesson.module }
+    return { title: lesson.title, _id: lesson._id }
   })
 
-  ctx.body = filteredLessons;
+  ctx.body = {subject: module.subject, iitle: module.title, _id: module._id, order: module.order, content: filteredLessons};
   ctx.status = 200;
   
   await next();
@@ -129,10 +135,12 @@ lectureRouter.post('/api/modules',
     const subject = await SubjectModel.findOne({ _id: parsed.data.subject }).exec();
     ctx.assert(subject, 404);
 
+    const modules = await ModuleModel.find({subject: subject._id}).exec();
+
     await ModuleModel.create({
       subject: subject._id,
       title: parsed.data.title,
-      order: parsed.data.order
+      order: modules.length,
     })
 
     ctx.status = 201;
@@ -160,10 +168,18 @@ lectureRouter.delete('/api/modules/:moduleId',
 
         await LessonModel.deleteMany({ module: module._id }).session(session);
         await ModuleModel.deleteOne({ _id: module._id }).session(session);
+
+        await ModuleModel.updateMany(
+          { subject: module.subject, order: { $gt: module.order }},
+          { $inc: { order: -1 } }
+        ).session(session)
       })
 
       ctx.status = 204;
-    } finally {
+    } catch (err) {
+      console.log(err);
+      ctx.status = 404;
+    }  finally {
       session.endSession();
     }
     await next()
@@ -198,8 +214,21 @@ lectureRouter.delete('/api/lessons/:lessonId',
     const deleted = await LessonModel.findByIdAndDelete(id).exec();
 
     ctx.assert(deleted, 404);
+
+    const session = await mongoose.startSession();
+    try {
+      await LessonModel.updateMany(
+        { module: deleted.module, order: { $gt: deleted.order} },
+        { $inc: { order: -1 }}
+      ).session(session)
+      ctx.status = 204;
+    } catch (err) {
+      console.log("delete lesson", err);
+      ctx.status = 404;
+    } finally {
+      session.endSession()
+    }
     
-    ctx.status = 204;
     await next()
   })
 
