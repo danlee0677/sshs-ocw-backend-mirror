@@ -213,7 +213,6 @@ authRouter.get("/api/auth/verify", async function (ctx: Context, next: Next) {
   const payload = verifyAccessToken(token)
   
   ctx.assert(payload, 401);
-  
   ctx.body = payload
   ctx.status = 200
 

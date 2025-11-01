@@ -59,7 +59,7 @@ lectureRouter.get('/api/subjects/:subjectId', async (ctx: Context, next: Next) =
   ctx.body = {
     title: subject.title,
     _id: subject._id,
-    contents: filteredModules
+    contents: filteredModules,
   }
   
   ctx.status = 200;
@@ -113,7 +113,7 @@ lectureRouter.get('/api/modules/:moduleId', async (ctx: Context, next: Next) => 
     return { title: lesson.title, _id: lesson._id }
   })
 
-  ctx.body = {subject: module.subject, iitle: module.title, _id: module._id, order: module.order, content: filteredLessons};
+  ctx.body = {subject: module.subject, iitle: module.title, _id: module._id, order: module.order, contents: filteredLessons};
   ctx.status = 200;
   
   await next();
@@ -194,7 +194,12 @@ lectureRouter.get('/api/lessons/:lessonId', async (ctx: Context, next: Next) => 
                                   .populate('createdBy', ['_id', 'name']).exec();
   ctx.assert(lesson, 404);
   
-  const filteredLesson = { title: lesson.title, content: lesson.content, createdBy: "anon" }
+  const filteredLesson = {
+    title: lesson.title, 
+    content: lesson.content, 
+    createdBy: lesson.createdBy,
+    module: lesson.module,
+  }
   ctx.body = filteredLesson;
   ctx.status = 200;
   await next()
