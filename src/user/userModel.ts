@@ -7,4 +7,4 @@ export const userSchema = new Schema({
   studyLevel: {type: [Boolean], required: true, default: [] }, // things like middle school, high school, etc
 })
 
-export const UserModel = mongoose.model('User', userSchema);
+export const UserModel = mongoose.model('user', userSchema);

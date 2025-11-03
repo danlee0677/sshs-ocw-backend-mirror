@@ -5,8 +5,8 @@ import { SubjectModel } from './subject/subjectModel';
 import { UserModel } from '../user/userModel';
 import { ModuleModel } from './module/moduleModel';
 import { subjectSchema } from './subject/subjectType';
-import { moduleSchema } from './module/moduleType';
-import { lessonSchema } from './lesson/lessonType';
+import { modulePatchSchema, modulePostSchema } from './module/moduleType';
+import { lessonPostSchema } from './lesson/lessonType';
 import mongoose from 'mongoose';
 import passport from 'koa-passport'
 
@@ -107,13 +107,13 @@ lectureRouter.get('/api/modules/:moduleId', async (ctx: Context, next: Next) => 
   const module = await ModuleModel.findOne({ _id: moduleId }).exec();
   ctx.assert(module, 404);
 
-  const lessons = await LessonModel.find({ module: module._id }).exec();
+  const lessons = await LessonModel.find({ module: module._id }).sort({order: 1}).exec();
 
   const filteredLessons = lessons.map((lesson) => {
     return { title: lesson.title, _id: lesson._id }
   })
 
-  ctx.body = {subject: module.subject, iitle: module.title, _id: module._id, order: module.order, contents: filteredLessons};
+  ctx.body = {subject: module.subject, title: module.title, _id: module._id, order: module.order, contents: filteredLessons};
   ctx.status = 200;
   
   await next();
@@ -126,7 +126,7 @@ lectureRouter.post('/api/modules',
     if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
     ctx.assert(ctx.state.user.roles.includes('admin'), 403)
 
-    const parsed = moduleSchema.safeParse(ctx.request.body);
+    const parsed = modulePostSchema.safeParse(ctx.request.body);
     
     ctx.assert(parsed.success, 400);
 
@@ -137,11 +137,15 @@ lectureRouter.post('/api/modules',
 
     const modules = await ModuleModel.find({subject: subject._id}).exec();
 
-    await ModuleModel.create({
+    const new_module = await ModuleModel.create({
       subject: subject._id,
       title: parsed.data.title,
       order: modules.length,
     })
+
+    ctx.body = {
+      _id: new_module._id
+    }
 
     ctx.status = 201;
 
@@ -185,13 +189,47 @@ lectureRouter.delete('/api/modules/:moduleId',
     await next()
   })
 
+// patch a module and its lessons
+lectureRouter.patch('/api/modules/:moduleId', 
+  passport.authenticate('jwt', { session: false }),
+  async (ctx: Context, next: Next) => {
+    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
+    ctx.assert(ctx.state.user.roles.includes('admin'), 403)
+
+    const moduleId = ctx.params.moduleId;
+
+    ctx.assert(mongoose.isValidObjectId(moduleId), 400);
+
+    const parsed = modulePatchSchema.safeParse(ctx.request.body);
+
+    ctx.assert(parsed.success, 400);
+
+    const session = await mongoose.startSession();
+    
+    try {
+      await session.withTransaction(async () => {
+        await ModuleModel.findByIdAndUpdate(moduleId, {
+          $set: { title: parsed.data.title }
+        }).session(session);
+      })
+      
+      ctx.status = 200;
+    } catch {
+      ctx.status = 400;
+    } finally {
+      session.endSession();
+    }
+
+    await next()
+  })
+
 // get single lesson content
 lectureRouter.get('/api/lessons/:lessonId', async (ctx: Context, next: Next) => {
   const lessonId = ctx.params.lessonId;
   ctx.assert(mongoose.isValidObjectId(lessonId), 400);
-
-  const lesson = await LessonModel.findOne({ _id: ctx.params.lessonId })
-                                  .populate('createdBy', ['_id', 'name']).exec();
+  
+  const lesson = await LessonModel.findOne({ _id: ctx.params.lessonId }).exec();
+  //                                .populate("createdBy", ["_id", "name"])
   ctx.assert(lesson, 404);
   
   const filteredLesson = {
@@ -199,6 +237,7 @@ lectureRouter.get('/api/lessons/:lessonId', async (ctx: Context, next: Next) => 
     content: lesson.content, 
     createdBy: lesson.createdBy,
     module: lesson.module,
+    _id: lesson._id,
   }
   ctx.body = filteredLesson;
   ctx.status = 200;
@@ -244,7 +283,7 @@ lectureRouter.post('/api/lessons',
     if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
     ctx.assert(ctx.state.user.roles.includes('admin'), 403);
 
-    const parsed = lessonSchema.safeParse(ctx.request.body);
+    const parsed = lessonPostSchema.safeParse(ctx.request.body);
 
     ctx.assert(parsed.success, 400);
     ctx.assert(mongoose.isValidObjectId(parsed.data.createdBy), 400);
@@ -254,12 +293,15 @@ lectureRouter.post('/api/lessons',
     ctx.assert(user, 404);
     const module = await ModuleModel.findOne({ _id: parsed.data.module }).exec();
     ctx.assert(module, 404);
+    const lessons = await LessonModel.find({ module: module._id }).exec();
     // add order logic
+
     await LessonModel.create({
       title: parsed.data.title,
       createdBy: user._id,
       module: module._id,
       content: parsed.data.content,
+      order: lessons.length,
     })
 
     ctx.status = 201;

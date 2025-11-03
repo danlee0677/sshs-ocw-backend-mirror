@@ -1,8 +1,14 @@
 import { z } from 'zod';
 
-export const moduleSchema = z.object({
+export const modulePostSchema = z.object({
   subject: z.string(),
   title: z.string(),
 })
 
-export type Module = z.infer<typeof moduleSchema>
+export const modulePatchSchema = z.object({
+  title: z.string(),
+  contents: z.array(z.object({
+    _id: z.string(),
+    title: z.string(),
+  }))
+})
