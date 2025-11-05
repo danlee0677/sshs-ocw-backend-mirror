@@ -28,14 +28,18 @@ lectureRouter.post('/api/subjects',
   passport.authenticate('jwt', { session: false }), 
   async (ctx: Context, next: Next) => {
     if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
-    ctx.assert(ctx.state.user.roles.includes('admin', 403))
+    ctx.assert(ctx.state.user.roles.includes('admin'), 403)
 
     const parsed = subjectSchema.safeParse(ctx.request.body);
     ctx.assert(parsed.success, 400);
     
-    await SubjectModel.create({
+    const subject = await SubjectModel.create({
       title: parsed.data.title,
     })
+
+    ctx.body = {
+      _id: subject._id,
+    }
 
     ctx.status = 201;
     await next();
