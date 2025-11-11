@@ -7,7 +7,7 @@ import { ModuleModel } from './module/moduleModel';
 import { subjectSchema } from './subject/subjectType';
 import { modulePatchSchema, modulePostSchema } from './module/moduleType';
 import { lessonPostSchema } from './lesson/lessonType';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import passport from 'koa-passport'
 
 const lectureRouter = new Router();
@@ -212,16 +212,46 @@ lectureRouter.patch('/api/modules/:moduleId',
     
     try {
       await session.withTransaction(async () => {
-        await ModuleModel.findByIdAndUpdate(moduleId, {
-          $set: { title: parsed.data.title }
-        }).session(session);
+        const module = await ModuleModel.findById(moduleId).session(session);
+        
+        ctx.assert(module, 404);
+
+        module.title = parsed.data.title;
+        await module.save({ session, validateModifiedOnly: true });
+        
+        const newLessonIds = parsed.data.contents.map(x => x._id);
+
+        const foundLessons = await LessonModel.find({
+          _id: { $in: newLessonIds },
+          module: module._id,
+        }).select('_id').session(session);
+        
+        const foundSet = new Set(foundLessons.map(x => x._id.toString()));
+        console.log(1)
+        console.log(foundSet);
+        ctx.assert(newLessonIds.filter((x) => !foundSet.has(x)).length === 0, 400);
+        console.log(2);
+        const attachedLessons = await LessonModel.find({ module: module._id }).select('_id').session(session);
+
+        const toDelete = attachedLessons.map((x) => (x._id.toString())).filter((id) => !newLessonIds.includes(id));
+
+        if (toDelete.length > 0) await LessonModel.deleteMany({ _id: { $in: toDelete }}).session(session);
+
+        const operations = parsed.data.contents.map((item, ind) => ({
+          updateOne: {
+            filter: { _id: new Types.ObjectId(item._id) },
+            update: { $set: { title: item.title, order: ind }},
+          },
+        }))
+
+        if (operations.length > 0) await LessonModel.bulkWrite(operations, { session });
       })
       
       ctx.status = 200;
     } catch {
       ctx.status = 400;
     } finally {
-      session.endSession();
+      await session.endSession();
     }
 
     await next()
