@@ -227,10 +227,7 @@ lectureRouter.patch('/api/modules/:moduleId',
         }).select('_id').session(session);
         
         const foundSet = new Set(foundLessons.map(x => x._id.toString()));
-        console.log(1)
-        console.log(foundSet);
         ctx.assert(newLessonIds.filter((x) => !foundSet.has(x)).length === 0, 400);
-        console.log(2);
         const attachedLessons = await LessonModel.find({ module: module._id }).select('_id').session(session);
 
         const toDelete = attachedLessons.map((x) => (x._id.toString())).filter((id) => !newLessonIds.includes(id));
