@@ -213,15 +213,13 @@ authRouter.get("/api/auth/verify", async function (ctx: Context, next: Next) {
   const payload = verifyAccessToken(token)
   
   ctx.assert(payload, 401);
-  const user = await UserModel.findById(payload._id).exec();
-  ctx.assert(user, 400);
   ctx.body = { 
-    _id: user._id, 
-    name: user.name, 
-    roles: user.roles, 
-    pfp_url: user.pfp_url,
-    preference: user.preference, 
-    studyLevel: user.studyLevel 
+    _id: payload._id, 
+    name: payload.name, 
+    roles: payload.roles, 
+    pfp_url: payload.pfp_url,
+    preference: payload.preference, 
+    studyLevel: payload.studyLevel 
   }
   ctx.status = 200
 

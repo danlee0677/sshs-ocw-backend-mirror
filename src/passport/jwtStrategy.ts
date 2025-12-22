@@ -18,6 +18,7 @@ export var jwtStrategy = new JwtStrategy(opts, async function(payload: any, cb) 
       roles: payload.roles,
       preference: payload.preference,
       studyLevel: payload.studyLevel,
+      pfp_url: payload.pfp_url,
     })
     
   } catch (err) {

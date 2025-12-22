@@ -21,6 +21,7 @@ export var googleStrategy = new GoogleStrategy({
         _id: user._id,
         preference: user.preference,
         studyLevel: user.studyLevel,
+        pfp_url: user.pfp_url,
       });
     } else {
       await ProviderModel.findByIdAndDelete(provider._id);
@@ -46,6 +47,7 @@ export var googleStrategy = new GoogleStrategy({
       _id: new_user._id,
       preference: new_user.preference,
       studyLevel: new_user.studyLevel,
+      pfp_url: new_user.pfp_url,
     });
   } catch (err) {
     console.log(err)

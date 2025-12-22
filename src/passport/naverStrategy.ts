@@ -17,6 +17,9 @@ export var naverStrategy = new NaverStrategy({
         name: user.name,
         _id: user._id,
         roles: user.roles,
+        pfp_url: user.pfp_url, 
+        preference: user.preference,
+        studyLevel: user.studyLevel,
       })
     } else {
       await ProviderModel.findByIdAndDelete(provider._id);
@@ -42,6 +45,7 @@ export var naverStrategy = new NaverStrategy({
       _id: new_user._id,
       preference: new_user.preference,
       studyLevel: new_user.studyLevel,
+      pfp_url: new_user.pfp_url,
     });
   } catch (err) {
     return cb(err);

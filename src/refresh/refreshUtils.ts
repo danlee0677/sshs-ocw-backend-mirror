@@ -9,7 +9,7 @@ const REFRESH_EXPIRE_SEC = 18 * 24 * 60 * 60;
 
 export function signAccessToken(user: ContextUser) {
   return jwt.sign(
-    { _id: user._id, name: user.name, roles: user.roles, preference: user.preference, studyLevel: user.studyLevel },
+    { _id: user._id, name: user.name, roles: user.roles, preference: user.preference, studyLevel: user.studyLevel, pfp_url: user.pfp_url },
     (process.env.JWT_SECRET as Secret),
     { 
       algorithm: (process.env.JWT_ALGORITHM as Algorithm),

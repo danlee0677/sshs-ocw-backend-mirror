@@ -15,7 +15,10 @@ export var kakaoStrategy = new KakaoStrategy({
         return await cb(null, {
           name: user.name,
           roles: user.roles,
+          preference: user.preference,
+          studyLevel: user.studyLevel,
           _id: user._id,
+          pfp_url: user.pfp_url
         })
       } else {
         await ProviderModel.findByIdAndDelete(provider._id);
@@ -41,6 +44,7 @@ export var kakaoStrategy = new KakaoStrategy({
         _id: new_user._id,
         preference: new_user.preference,
         studyLevel: new_user.studyLevel,
+        pfp_url: new_user.pfp_url,
       });
     } catch (err) {
       return await cb(err);
