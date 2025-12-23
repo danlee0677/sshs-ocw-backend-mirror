@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const lessonPostSchema = z.object({
-  module: z.string(),
+  subject: z.string(),
   title: z.string(),
   content: z.string(),
   createdBy: z.string(),

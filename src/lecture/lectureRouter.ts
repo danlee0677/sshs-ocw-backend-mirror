@@ -4,8 +4,7 @@ import { LessonModel } from './lesson/lessonModel';
 import { SubjectModel } from './subject/subjectModel';
 import { UserModel } from '../user/userModel';
 import { ModuleModel } from './module/moduleModel';
-import { subjectSchema } from './subject/subjectType';
-import { modulePatchSchema, modulePostSchema } from './module/moduleType';
+import { subjectPatchSchema, subjectSchema } from './subject/subjectType';
 import { lessonPostSchema } from './lesson/lessonType';
 import mongoose, { Types } from 'mongoose';
 import passport from 'koa-passport'
@@ -45,7 +44,7 @@ lectureRouter.post('/api/subjects',
     await next();
   })
 
-// get one subject -> get all modules
+// get one subject -> get all lessons
 lectureRouter.get('/api/subjects/:subjectId', async (ctx: Context, next: Next) => {
   const subjectId = ctx.params.subjectId;
   
@@ -53,17 +52,17 @@ lectureRouter.get('/api/subjects/:subjectId', async (ctx: Context, next: Next) =
   const subject = await SubjectModel.findById(subjectId);
   ctx.assert(subject, 404);
 
-  const modules = await ModuleModel.find({ subject: subjectId })
+  const lessons = await LessonModel.find({ subject: subjectId })
                                    .sort({order: 1})
                                    .exec();
-  const filteredModules = modules.map((module) => {
-    return { _id: module._id, title: module.title };
+  const filteredLessons = lessons.map((lesson) => {
+    return { _id: lesson._id, title: lesson.title };
   })
 
   ctx.body = {
     title: subject.title,
     _id: subject._id,
-    contents: filteredModules,
+    contents: filteredLessons,
   }
   
   ctx.status = 200;
@@ -103,108 +102,16 @@ lectureRouter.delete('/api/subjects/:subjectId',
     }
   })
 
-// get one module -> get all lessons in module
-lectureRouter.get('/api/modules/:moduleId', async (ctx: Context, next: Next) => {
-  const moduleId = ctx.params.moduleId;
-  ctx.assert(mongoose.isValidObjectId(moduleId), 400);
-
-  const module = await ModuleModel.findOne({ _id: moduleId }).exec();
-  ctx.assert(module, 404);
-
-  const lessons = await LessonModel.find({ module: module._id }).sort({order: 1}).exec();
-
-  const filteredLessons = lessons.map((lesson) => {
-    return { title: lesson.title, _id: lesson._id }
-  })
-
-  ctx.body = {subject: module.subject, title: module.title, _id: module._id, order: module.order, contents: filteredLessons};
-  ctx.status = 200;
-  
-  await next();
-})
-
-// create a module
-lectureRouter.post('/api/modules', 
+lectureRouter.patch('/api/subjects/:subjectId', 
   passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
-    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
+    if (!ctx.state.user) throw new Error("assertUser: missing User(RequireAuth not mounted?)");
     ctx.assert(ctx.state.user.roles.includes('admin'), 403)
 
-    const parsed = modulePostSchema.safeParse(ctx.request.body);
-    
-    ctx.assert(parsed.success, 400);
+    const subjectId = ctx.params.subjectId;
+    ctx.assert(mongoose.isValidObjectId(subjectId), 400);
 
-    ctx.assert(mongoose.isValidObjectId(parsed.data.subject), 400);
-
-    const subject = await SubjectModel.findOne({ _id: parsed.data.subject }).exec();
-    ctx.assert(subject, 404);
-
-    const modules = await ModuleModel.find({subject: subject._id}).exec();
-
-    const new_module = await ModuleModel.create({
-      subject: subject._id,
-      title: parsed.data.title,
-      order: modules.length,
-    })
-
-    ctx.body = {
-      _id: new_module._id
-    }
-
-    ctx.status = 201;
-
-    return await next()
-  })
-
-// delete a module
-lectureRouter.delete('/api/modules/:moduleId', 
-  passport.authenticate('jwt', { session: false }),
-  async (ctx: Context, next: Next) => {
-    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
-    ctx.assert(ctx.state.user.roles.includes('admin'), 403)
-
-    const moduleId = ctx.params.moduleId;
-
-    ctx.assert(mongoose.isValidObjectId(moduleId), 400);
-
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        const module = await ModuleModel.findOne({ _id: moduleId }).session(session);
-        
-        ctx.assert(module, 404);
-
-        await LessonModel.deleteMany({ module: module._id }).session(session);
-        await ModuleModel.deleteOne({ _id: module._id }).session(session);
-
-        await ModuleModel.updateMany(
-          { subject: module.subject, order: { $gt: module.order }},
-          { $inc: { order: -1 } }
-        ).session(session)
-      })
-
-      ctx.status = 204;
-    } catch (err) {
-      console.log(err);
-      ctx.status = 404;
-    }  finally {
-      session.endSession();
-    }
-    await next()
-  })
-
-// patch a module and its lessons
-lectureRouter.patch('/api/modules/:moduleId', 
-  passport.authenticate('jwt', { session: false }),
-  async (ctx: Context, next: Next) => {
-    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
-    ctx.assert(ctx.state.user.roles.includes('admin'), 403)
-
-    const moduleId = ctx.params.moduleId;
-
-    ctx.assert(mongoose.isValidObjectId(moduleId), 400);
-
-    const parsed = modulePatchSchema.safeParse(ctx.request.body);
+    const parsed = subjectPatchSchema.safeParse(ctx.request.body);
 
     ctx.assert(parsed.success, 400);
 
@@ -212,23 +119,22 @@ lectureRouter.patch('/api/modules/:moduleId',
     
     try {
       await session.withTransaction(async () => {
-        const module = await ModuleModel.findById(moduleId).session(session);
-        
-        ctx.assert(module, 404);
+        const subject = await SubjectModel.findById(subjectId).session(session);
+        ctx.assert(subject, 404);
 
-        module.title = parsed.data.title;
-        await module.save({ session, validateModifiedOnly: true });
+        subject.title = parsed.data.title;
+        await subject.save({ session, validateModifiedOnly: true });
         
         const newLessonIds = parsed.data.contents.map(x => x._id);
 
         const foundLessons = await LessonModel.find({
           _id: { $in: newLessonIds },
-          module: module._id,
+          subject: subject._id,
         }).select('_id').session(session);
         
         const foundSet = new Set(foundLessons.map(x => x._id.toString()));
         ctx.assert(newLessonIds.filter((x) => !foundSet.has(x)).length === 0, 400);
-        const attachedLessons = await LessonModel.find({ module: module._id }).select('_id').session(session);
+        const attachedLessons = await LessonModel.find({ subject: subject._id }).select('_id').session(session);
 
         const toDelete = attachedLessons.map((x) => (x._id.toString())).filter((id) => !newLessonIds.includes(id));
 
@@ -252,14 +158,15 @@ lectureRouter.patch('/api/modules/:moduleId',
     }
 
     await next()
-  })
+  }
+)
 
 // get single lesson content
 lectureRouter.get('/api/lessons/:lessonId', async (ctx: Context, next: Next) => {
   const lessonId = ctx.params.lessonId;
   ctx.assert(mongoose.isValidObjectId(lessonId), 400);
   
-  const lesson = await LessonModel.findOne({ _id: ctx.params.lessonId }).exec();
+  const lesson = await LessonModel.findOne({ _id: lessonId }).exec();
   //                                .populate("createdBy", ["_id", "name"])
   ctx.assert(lesson, 404);
   
@@ -267,7 +174,7 @@ lectureRouter.get('/api/lessons/:lessonId', async (ctx: Context, next: Next) => 
     title: lesson.title, 
     content: lesson.content, 
     createdBy: lesson.createdBy,
-    module: lesson.module,
+    subject: lesson.subject,
     _id: lesson._id,
   }
   ctx.body = filteredLesson;
@@ -293,7 +200,7 @@ lectureRouter.delete('/api/lessons/:lessonId',
     const session = await mongoose.startSession();
     try {
       await LessonModel.updateMany(
-        { module: deleted.module, order: { $gt: deleted.order} },
+        { subject: deleted.subject, order: { $gt: deleted.order} },
         { $inc: { order: -1 }}
       ).session(session)
       ctx.status = 204;
@@ -318,19 +225,19 @@ lectureRouter.post('/api/lessons',
 
     ctx.assert(parsed.success, 400);
     ctx.assert(mongoose.isValidObjectId(parsed.data.createdBy), 400);
-    ctx.assert(mongoose.isValidObjectId(parsed.data.module), 400);
+    ctx.assert(mongoose.isValidObjectId(parsed.data.subject), 400);
 
     const user = await UserModel.findOne({ _id: parsed.data.createdBy }).exec();
     ctx.assert(user, 404);
-    const module = await ModuleModel.findOne({ _id: parsed.data.module }).exec();
-    ctx.assert(module, 404);
-    const lessons = await LessonModel.find({ module: module._id }).exec();
+    const subject = await SubjectModel.findOne({ _id: parsed.data.subject }).exec();
+    ctx.assert(subject, 404);
+    const lessons = await LessonModel.find({ subject: subject._id }).exec();
     // add order logic
 
     await LessonModel.create({
       title: parsed.data.title,
       createdBy: user._id,
-      module: module._id,
+      subject: subject._id,
       content: parsed.data.content,
       order: lessons.length,
     })
