@@ -23,17 +23,18 @@ lectureRouter.get('/api/subjects', async (ctx: Context, next: Next) => {
 })
 
 // create new subject
-lectureRouter.post('/api/subjects', 
-  passport.authenticate('jwt', { session: false }), 
+lectureRouter.post('/api/subjects',
+  passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
     if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
     ctx.assert(ctx.state.user.roles.includes('admin'), 403)
 
     const parsed = subjectSchema.safeParse(ctx.request.body);
-    ctx.assert(parsed.success, 400);
-    
+    ctx.assert(parsed.success, 400);  
+
     const subject = await SubjectModel.create({
       title: parsed.data.title,
+      description: parsed.data.description
     })
 
     ctx.body = {
@@ -47,30 +48,31 @@ lectureRouter.post('/api/subjects',
 // get one subject -> get all lessons
 lectureRouter.get('/api/subjects/:subjectId', async (ctx: Context, next: Next) => {
   const subjectId = ctx.params.subjectId;
-  
+
   ctx.assert(mongoose.isValidObjectId(subjectId), 400);
   const subject = await SubjectModel.findById(subjectId);
   ctx.assert(subject, 404);
 
   const lessons = await LessonModel.find({ subject: subjectId })
-                                   .sort({order: 1})
-                                   .exec();
+    .sort({ order: 1 })
+    .exec();
   const filteredLessons = lessons.map((lesson) => {
     return { _id: lesson._id, title: lesson.title };
   })
 
   ctx.body = {
     title: subject.title,
+    description: subject.description,
     _id: subject._id,
     contents: filteredLessons,
   }
-  
+
   ctx.status = 200;
   await next();
 })
 
 // delete subject
-lectureRouter.delete('/api/subjects/:subjectId', 
+lectureRouter.delete('/api/subjects/:subjectId',
   passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
     if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
@@ -80,7 +82,7 @@ lectureRouter.delete('/api/subjects/:subjectId',
     // todo: auth
 
     ctx.assert(mongoose.isValidObjectId(subjectId), 400);
-    
+
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
@@ -102,7 +104,7 @@ lectureRouter.delete('/api/subjects/:subjectId',
     }
   })
 
-lectureRouter.patch('/api/subjects/:subjectId', 
+lectureRouter.patch('/api/subjects/:subjectId',
   passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
     if (!ctx.state.user) throw new Error("assertUser: missing User(RequireAuth not mounted?)");
@@ -116,40 +118,41 @@ lectureRouter.patch('/api/subjects/:subjectId',
     ctx.assert(parsed.success, 400);
 
     const session = await mongoose.startSession();
-    
+
     try {
       await session.withTransaction(async () => {
         const subject = await SubjectModel.findById(subjectId).session(session);
         ctx.assert(subject, 404);
 
         subject.title = parsed.data.title;
+        subject.description = parsed.data.description;
         await subject.save({ session, validateModifiedOnly: true });
-        
+
         const newLessonIds = parsed.data.contents.map(x => x._id);
 
         const foundLessons = await LessonModel.find({
           _id: { $in: newLessonIds },
           subject: subject._id,
         }).select('_id').session(session);
-        
+
         const foundSet = new Set(foundLessons.map(x => x._id.toString()));
         ctx.assert(newLessonIds.filter((x) => !foundSet.has(x)).length === 0, 400);
         const attachedLessons = await LessonModel.find({ subject: subject._id }).select('_id').session(session);
 
         const toDelete = attachedLessons.map((x) => (x._id.toString())).filter((id) => !newLessonIds.includes(id));
 
-        if (toDelete.length > 0) await LessonModel.deleteMany({ _id: { $in: toDelete }}).session(session);
+        if (toDelete.length > 0) await LessonModel.deleteMany({ _id: { $in: toDelete } }).session(session);
 
         const operations = parsed.data.contents.map((item, ind) => ({
           updateOne: {
             filter: { _id: new Types.ObjectId(item._id) },
-            update: { $set: { title: item.title, order: ind }},
+            update: { $set: { title: item.title, order: ind } },
           },
         }))
 
         if (operations.length > 0) await LessonModel.bulkWrite(operations, { session });
       })
-      
+
       ctx.status = 200;
     } catch {
       ctx.status = 400;
@@ -165,14 +168,14 @@ lectureRouter.patch('/api/subjects/:subjectId',
 lectureRouter.get('/api/lessons/:lessonId', async (ctx: Context, next: Next) => {
   const lessonId = ctx.params.lessonId;
   ctx.assert(mongoose.isValidObjectId(lessonId), 400);
-  
+
   const lesson = await LessonModel.findOne({ _id: lessonId }).exec();
   //                                .populate("createdBy", ["_id", "name"])
   ctx.assert(lesson, 404);
-  
+
   const filteredLesson = {
-    title: lesson.title, 
-    content: lesson.content, 
+    title: lesson.title,
+    content: lesson.content,
     createdBy: lesson.createdBy,
     subject: lesson.subject,
     _id: lesson._id,
@@ -192,7 +195,7 @@ lectureRouter.delete('/api/lessons/:lessonId',
     const id = ctx.params.lessonId;
 
     ctx.assert(mongoose.isValidObjectId(id), 400);
-    
+
     const deleted = await LessonModel.findByIdAndDelete(id).exec();
 
     ctx.assert(deleted, 404);
@@ -200,8 +203,8 @@ lectureRouter.delete('/api/lessons/:lessonId',
     const session = await mongoose.startSession();
     try {
       await LessonModel.updateMany(
-        { subject: deleted.subject, order: { $gt: deleted.order} },
-        { $inc: { order: -1 }}
+        { subject: deleted.subject, order: { $gt: deleted.order } },
+        { $inc: { order: -1 } }
       ).session(session)
       ctx.status = 204;
     } catch (err) {
@@ -210,12 +213,12 @@ lectureRouter.delete('/api/lessons/:lessonId',
     } finally {
       session.endSession()
     }
-    
+
     await next()
   })
 
 // create a lesson
-lectureRouter.post('/api/lessons', 
+lectureRouter.post('/api/lessons',
   passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
     if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
