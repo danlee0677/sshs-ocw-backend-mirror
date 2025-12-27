@@ -58,6 +58,7 @@ async function decodePrefToken(ctx: Context, user: ContextUser) {
   const studyLevel = maskToArr(parsed.data.studyLevelMask, 4);
 
   const new_user = await UserModel.findByIdAndUpdate(user._id, {
+    liked_subject: [],
     preference: preference,
     studyLevel: studyLevel,
   }, {new: true}).exec()
@@ -217,6 +218,7 @@ authRouter.get("/api/auth/verify", async function (ctx: Context, next: Next) {
     _id: payload._id, 
     name: payload.name, 
     roles: payload.roles, 
+    liked_subject: payload.liked_subject,
     pfp_url: payload.pfp_url,
     preference: payload.preference, 
     studyLevel: payload.studyLevel 

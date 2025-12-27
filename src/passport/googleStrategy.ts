@@ -33,7 +33,8 @@ export var googleStrategy = new GoogleStrategy({
       name: (profile.name ? `${profile.name.givenName} ${profile.name.familyName}` : "unknown"),
       roles: ['user'],
       preference: [false, false, false, false, false, false],
-      studyLevel: [false, false, false, false]
+      studyLevel: [false, false, false, false],
+      liked_subject: []
     })
     // create new provider
     await ProviderModel.create({
@@ -48,6 +49,7 @@ export var googleStrategy = new GoogleStrategy({
       preference: new_user.preference,
       studyLevel: new_user.studyLevel,
       pfp_url: new_user.pfp_url,
+      liked_subject: new_user.liked_subject
     });
   } catch (err) {
     console.log(err)

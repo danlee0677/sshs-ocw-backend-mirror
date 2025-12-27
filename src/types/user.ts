@@ -6,6 +6,7 @@ export const accessTokenUserSchema = z.object({
   name: z.string(),
   pfp_url: z.string(),
   roles: z.array(z.string()),
+  liked_subject: z.array(z.string()),
   preference: z.array(z.boolean()), // things like math, physics, 
   studyLevel: z.array(z.boolean()), // things like middle school, high school, etc
 })
@@ -17,6 +18,7 @@ export interface ContextUser {
   name: string,
   pfp_url: string,
   roles: Array<string>,
+  liked_subject: Array<string>,
   preference: Array<boolean>,
   studyLevel: Array<boolean>
 }
