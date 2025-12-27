@@ -7,6 +7,7 @@ import { UserModel } from "../user/userModel";
 import { mintRefreshToken, signAccessToken, setRefreshCookie, verifyAccessToken } from "../refresh/refreshUtils";
 import { z } from 'zod'
 import { ContextUser } from "../types/user";
+import { userCreateSchema } from "../user/userType";
 
 const authRouter = new Router();
 
@@ -19,7 +20,7 @@ function parseUsername(ctx: Context): string {
   ctx.assert(parsed.success, 400)
 
   return jwt.sign({
-    username: parsed.data.username ?? "sshs-ocw-user"
+    username: parsed.data.username
   }, STATE_SECRET, { expiresIn: "5m", algorithm: "HS256" })
 }
 
@@ -35,13 +36,20 @@ async function decodeUsernameToken(ctx: Context, user: ContextUser) {
   
   ctx.assert(parsed.success, 400);
 
-  const new_user = await UserModel.findByIdAndUpdate(user._id, {
-    liked_subject: [],
-    username: parsed.data.username,
-  }, {new: true}).exec()
-  ctx.assert(new_user, 400);
+  if (parsed.data.username) {
+    const new_user = await UserModel.findByIdAndUpdate(user._id, {
+      liked_subject: [],
+      username: parsed.data.username,
+    }, {new: true}).exec()
+    ctx.assert(new_user, 400);
 
-  return new_user
+    return new_user
+  } else {
+    const ret_user = await UserModel.findById(user._id).exec();
+    ctx.assert(ret_user, 400);
+    
+    return ret_user
+  }
 }
 
 authRouter.get("/api/auth/login/google", async function (ctx: Context, next: Next) {
