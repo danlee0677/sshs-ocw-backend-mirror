@@ -14,10 +14,8 @@ export var jwtStrategy = new JwtStrategy(opts, async function(payload: any, cb) 
     
     return cb(null, {
       id: payload.sub,
-      name: payload.name,
+      username: payload.username,
       roles: payload.roles,
-      preference: payload.preference,
-      studyLevel: payload.studyLevel,
       pfp_url: payload.pfp_url,
       liked_subject: payload.liked_subject
     })

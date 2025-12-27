@@ -13,12 +13,11 @@ export var kakaoStrategy = new KakaoStrategy({
       const user = await UserModel.findById(provider.userId);
       if (user) {
         return await cb(null, {
-          name: user.name,
+          username: user.username,
           roles: user.roles,
-          preference: user.preference,
-          studyLevel: user.studyLevel,
           _id: user._id,
-          pfp_url: user.pfp_url
+          pfp_url: user.pfp_url,
+          liked_subject: user.liked_subject
         })
       } else {
         await ProviderModel.findByIdAndDelete(provider._id);
@@ -26,10 +25,9 @@ export var kakaoStrategy = new KakaoStrategy({
     }
     try {
       const new_user = await UserModel.create({
-        name: (profile.name ? `${profile.name.givenName} ${profile.name.familyName}` : "unknown"),
+        username: (profile.name ? `${profile.name.givenName} ${profile.name.familyName}` : "unknown"),
         roles: ['user'],
-        preference: [false, false, false, false, false, false],
-        studyLevel: [false, false, false, false],
+        liked_subject: [],
       })
       
       await ProviderModel.create({
@@ -39,12 +37,11 @@ export var kakaoStrategy = new KakaoStrategy({
       })
 
       return await cb(null, {
-        name: new_user.name,
+        username: new_user.username,
         roles: new_user.roles,
         _id: new_user._id,
-        preference: new_user.preference,
-        studyLevel: new_user.studyLevel,
         pfp_url: new_user.pfp_url,
+        liked_subject: new_user.liked_subject
       });
     } catch (err) {
       return await cb(err);

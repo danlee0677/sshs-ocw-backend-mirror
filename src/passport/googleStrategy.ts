@@ -16,12 +16,11 @@ export var googleStrategy = new GoogleStrategy({
     const user = await UserModel.findById(provider.userId);
     if (user) {
       return cb(null, {
-        name: user.name,
+        username: user.username,
         roles: user.roles,
         _id: user._id,
-        preference: user.preference,
-        studyLevel: user.studyLevel,
         pfp_url: user.pfp_url,
+        liked_subject: user.liked_subject,
       });
     } else {
       await ProviderModel.findByIdAndDelete(provider._id);
@@ -30,10 +29,8 @@ export var googleStrategy = new GoogleStrategy({
   try {
     // create new user
     const new_user = await UserModel.create({
-      name: (profile.name ? `${profile.name.givenName} ${profile.name.familyName}` : "unknown"),
+      username: (profile.name ? `${profile.name.givenName} ${profile.name.familyName}` : "unknown"),
       roles: ['user'],
-      preference: [false, false, false, false, false, false],
-      studyLevel: [false, false, false, false],
       liked_subject: []
     })
     // create new provider
@@ -43,11 +40,9 @@ export var googleStrategy = new GoogleStrategy({
       userId: new_user._id, // mongodb _id
     })
     return await cb(null, {
-      name: new_user.name,
+      username: new_user.username,
       roles: new_user.roles,
       _id: new_user._id,
-      preference: new_user.preference,
-      studyLevel: new_user.studyLevel,
       pfp_url: new_user.pfp_url,
       liked_subject: new_user.liked_subject
     });

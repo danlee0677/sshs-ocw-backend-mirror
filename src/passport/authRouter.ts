@@ -12,55 +12,32 @@ const authRouter = new Router();
 
 const STATE_SECRET = process.env.STATE_SECRET as string
 
-function parsePrefs(ctx: Context): string {
+function parseUsername(ctx: Context): string {
   const parsed = z.object({
-    prefs: z.string(),
+    username: z.string(),
   }).safeParse(ctx.query)
   ctx.assert(parsed.success, 400)
 
-  const splitData = parsed.data.prefs.split(".")
-  ctx.assert(splitData.length === 2, 400)
-
-  const [preferenceMaskStr, studyLevelMaskStr] = splitData
-  let preferenceMask: number, studyLevelMask: number
-
-  try {
-    preferenceMask = parseInt(preferenceMaskStr)
-    studyLevelMask = parseInt(studyLevelMaskStr)
-  } catch {
-    ctx.throw(400);
-  }
-
   return jwt.sign({
-    preferenceMask: preferenceMask,
-    studyLevelMask: studyLevelMask
+    username: parsed.data.username ?? "sshs-ocw-user"
   }, STATE_SECRET, { expiresIn: "5m", algorithm: "HS256" })
 }
 
-function maskToArr(mask: number, len: number) {
-  return Array.from({length: len}, (_, i) => ((mask >> i) & 1) == 1);
-}
-
-async function decodePrefToken(ctx: Context, user: ContextUser) {
+async function decodeUsernameToken(ctx: Context, user: ContextUser) {
   const token = ctx.query.state
   ctx.assert(typeof token === "string", 400);
 
   const state = jwt.verify(token, STATE_SECRET, { algorithms: ["HS256"]})
 
   const parsed = z.object({
-    preferenceMask: z.number(),
-    studyLevelMask: z.number(),
+    username: z.string(),
   }).safeParse(state)
   
   ctx.assert(parsed.success, 400);
-  
-  const preference = maskToArr(parsed.data.preferenceMask, 6);
-  const studyLevel = maskToArr(parsed.data.studyLevelMask, 4);
 
   const new_user = await UserModel.findByIdAndUpdate(user._id, {
     liked_subject: [],
-    preference: preference,
-    studyLevel: studyLevel,
+    username: parsed.data.username,
   }, {new: true}).exec()
   ctx.assert(new_user, 400);
 
@@ -68,7 +45,7 @@ async function decodePrefToken(ctx: Context, user: ContextUser) {
 }
 
 authRouter.get("/api/auth/login/google", async function (ctx: Context, next: Next) {
-    const state = parsePrefs(ctx)
+    const state = parseUsername(ctx)
     
     return passport.authenticate(
       'google', { state: state, scope: ['profile'], session: false }
@@ -79,7 +56,7 @@ authRouter.get("/api/auth/login/google/callback",
   passport.authenticate('google', { session: false }),
   async function(ctx: Context, next: Next) {
     if (ctx.state.user) {
-      const user = await decodePrefToken(ctx, ctx.state.user);
+      const user = await decodeUsernameToken(ctx, ctx.state.user);
       const refresh = await mintRefreshToken(user);
       setRefreshCookie(ctx, refresh);
       
@@ -94,7 +71,7 @@ authRouter.get("/api/auth/login/google/callback",
 
 
 authRouter.get("/api/auth/login/kakao", async function(ctx: Context, next: Next) {
-    const state = parsePrefs(ctx)
+    const state = parseUsername(ctx)
 
     return passport.authenticate('kakao', { state: state, session: false })(ctx, next);
   });
@@ -103,7 +80,7 @@ authRouter.get("/api/auth/login/kakao/callback",
   passport.authenticate('kakao', { session: false }),
   async function(ctx: Context, next: Next) {
     if (ctx.state.user) {
-      const user = await decodePrefToken(ctx, ctx.state.user)
+      const user = await decodeUsernameToken(ctx, ctx.state.user)
 
       const accessToken = signAccessToken(user);
       const refresh = await mintRefreshToken(user);
@@ -122,7 +99,7 @@ authRouter.get("/api/auth/login/kakao/callback",
 
 
 authRouter.get("/api/auth/login/naver", async function (ctx: Context, next: Next) {
-    const state = parsePrefs(ctx)
+    const state = parseUsername(ctx)
 
     return passport.authenticate('naver', { state: state, session: false })(ctx, next);
   })
@@ -131,7 +108,7 @@ authRouter.get("/api/auth/login/naver/callback",
   passport.authenticate('naver', { session: false }),
   async function (ctx: Context, next: Next) {
     if (ctx.state.user) {
-      const user = await decodePrefToken(ctx, ctx.state.user);
+      const user = await decodeUsernameToken(ctx, ctx.state.user);
 
       const refresh = await mintRefreshToken(user);
       setRefreshCookie(ctx, refresh);
@@ -216,12 +193,10 @@ authRouter.get("/api/auth/verify", async function (ctx: Context, next: Next) {
   ctx.assert(payload, 401);
   ctx.body = { 
     _id: payload._id, 
-    name: payload.name, 
+    username: payload.username, 
     roles: payload.roles, 
     liked_subject: payload.liked_subject,
     pfp_url: payload.pfp_url,
-    preference: payload.preference, 
-    studyLevel: payload.studyLevel 
   }
   ctx.status = 200
 
