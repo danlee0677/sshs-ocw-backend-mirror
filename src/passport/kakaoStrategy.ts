@@ -5,10 +5,11 @@ import { ProviderModel } from './providerModel';
 export var kakaoStrategy = new KakaoStrategy({
     clientID : process.env.KAKAO_CLIENT_ID || "",
     clientSecret: process.env.KAKAO_CLIENT_SECRET || "",
-    callbackURL : `${process.env.BASE_API_URL || ""}/api/auth/login/kakao/callback`
+    callbackURL : `${process.env.BASE_API_URL || ""}/api/auth/login/kakao/callback`,
   },
   async function (accessToken: String, refreshToken: String, profile: Profile, cb: any) {
     const provider = await ProviderModel.findOne({provider: "kakao", providerUserId: profile.id})
+
     if (provider) {
       const user = await UserModel.findById(provider.userId);
       if (user) {
@@ -25,7 +26,7 @@ export var kakaoStrategy = new KakaoStrategy({
     }
     try {
       const new_user = await UserModel.create({
-        username: (profile.name ? `${profile.name.givenName} ${profile.name.familyName}` : "unknown"),
+        username: "default-user",
         roles: ['user'],
         liked_subject: [],
       })

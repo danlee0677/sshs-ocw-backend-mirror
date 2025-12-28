@@ -26,7 +26,7 @@ export var naverStrategy = new NaverStrategy({
   }
   try {
     const new_user = await UserModel.create({
-      name: (profile.name ? `${profile.name.givenName} ${profile.name.familyName}` : "unknown"),
+      name: "default-user",
       roles: ['user'],
       liked_subject: [],
     })

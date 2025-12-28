@@ -11,7 +11,6 @@ export var googleStrategy = new GoogleStrategy({
 }, async function(req, accessToken: string, refreshToken: string, profile: Profile, cb: any) {
   const provider = await ProviderModel.findOne({ provider: "google", providerUserId: profile.id })
   
-  
   if (provider) {
     const user = await UserModel.findById(provider.userId);
     if (user) {
@@ -29,7 +28,7 @@ export var googleStrategy = new GoogleStrategy({
   try {
     // create new user
     const new_user = await UserModel.create({
-      username: (profile.name ? `${profile.name.givenName} ${profile.name.familyName}` : "unknown"),
+      username: "default-user",
       roles: ['user'],
       liked_subject: []
     })

@@ -19,37 +19,36 @@ function parseUsername(ctx: Context): string {
   }).safeParse(ctx.query)
   ctx.assert(parsed.success, 400)
 
-  return jwt.sign({
-    username: parsed.data.username
-  }, STATE_SECRET, { expiresIn: "5m", algorithm: "HS256" })
+  const token = jwt.sign({ username: parsed.data.username }, STATE_SECRET, { algorithm: "HS256", expiresIn: "5m" });
+
+  return token
 }
 
-async function decodeUsernameToken(ctx: Context, user: ContextUser) {
-  const token = ctx.query.state
-  ctx.assert(typeof token === "string", 400);
+async function decodeUsername(user: ContextUser, ctx: Context) {
+  if (user.username === "default-user") {
+    const state = ctx.query.state
 
-  const state = jwt.verify(token, STATE_SECRET, { algorithms: ["HS256"]})
+    ctx.assert(typeof state === "string", 400)
+    
+    const decoded = jwt.verify(state, STATE_SECRET, { algorithms: ["HS256"] });
+    const parsed = z.object({
+      username: z.string(),
+    }).safeParse(decoded)
 
-  const parsed = z.object({
-    username: z.string(),
-  }).safeParse(state)
-  
-  ctx.assert(parsed.success, 400);
+    ctx.assert(parsed.success, 400);
 
-  if (parsed.data.username) {
-    const new_user = await UserModel.findByIdAndUpdate(user._id, {
-      liked_subject: [],
-      username: parsed.data.username,
-    }, {new: true}).exec()
+    let parsedUsername = parsed.data.username
+    if (parsedUsername === "") {
+      parsedUsername = "default_user"
+    }
+
+    const new_user = await UserModel.findByIdAndUpdate(user._id, { username: parsedUsername }).exec();
+
     ctx.assert(new_user, 400);
 
     return new_user
-  } else {
-    const ret_user = await UserModel.findById(user._id).exec();
-    ctx.assert(ret_user, 400);
-    
-    return ret_user
   }
+  return user
 }
 
 authRouter.get("/api/auth/login/google", async function (ctx: Context, next: Next) {
@@ -64,7 +63,7 @@ authRouter.get("/api/auth/login/google/callback",
   passport.authenticate('google', { session: false }),
   async function(ctx: Context, next: Next) {
     if (ctx.state.user) {
-      const user = await decodeUsernameToken(ctx, ctx.state.user);
+      const user = await decodeUsername(ctx.state.user, ctx);
       const refresh = await mintRefreshToken(user);
       setRefreshCookie(ctx, refresh);
       
@@ -88,13 +87,9 @@ authRouter.get("/api/auth/login/kakao/callback",
   passport.authenticate('kakao', { session: false }),
   async function(ctx: Context, next: Next) {
     if (ctx.state.user) {
-      const user = await decodeUsernameToken(ctx, ctx.state.user)
-
-      const accessToken = signAccessToken(user);
+      const user = await decodeUsername(ctx.state.user, ctx);
       const refresh = await mintRefreshToken(user);
-      setRefreshCookie(ctx, refresh);
-      ctx.body = { token: accessToken, token_type: "Bearer", expires_in: 900}
-      
+      setRefreshCookie(ctx, refresh);      
       ctx.status = 200;
 
       ctx.redirect(`${process.env.FRONTEND_URL}/login/complete`)
@@ -116,8 +111,7 @@ authRouter.get("/api/auth/login/naver/callback",
   passport.authenticate('naver', { session: false }),
   async function (ctx: Context, next: Next) {
     if (ctx.state.user) {
-      const user = await decodeUsernameToken(ctx, ctx.state.user);
-
+      const user = await decodeUsername(ctx.state.user, ctx);
       const refresh = await mintRefreshToken(user);
       setRefreshCookie(ctx, refresh);
       
