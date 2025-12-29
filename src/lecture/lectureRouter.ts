@@ -8,6 +8,7 @@ import { subjectPatchSchema, subjectSchema } from './subject/subjectType';
 import { lessonPostSchema } from './lesson/lessonType';
 import mongoose, { Mongoose, Types } from 'mongoose';
 import passport from 'koa-passport'
+import { z } from 'zod';
 
 const lectureRouter = new Router();
 
@@ -130,7 +131,7 @@ lectureRouter.patch('/api/subjects/:subjectId',
 				ctx.assert(subject, 404);
 
 				subject.title = parsed.data.title;
-				subject.image_url = parsed.data.image_url;
+				subject.image_url = parsed.data.image_url
 				subject.description = parsed.data.description;
 				await subject.save({ session, validateModifiedOnly: true });
 
@@ -171,27 +172,27 @@ lectureRouter.patch('/api/subjects/:subjectId',
 )
 
 // Subject Like
-lectureRouter.post('/api/subjects/:subjectId/like', 
-	passport.authenticate('jwt', {session: false}), 
+lectureRouter.post('/api/subjects/:subjectId/like',
+	passport.authenticate('jwt', { session: false }),
 	async (ctx: Context, next: Next) => {
 		if (!ctx.state.user) throw new Error("assertUser: missing User(RequireAuth not mounted?)");
-		
+
 		const userId = (ctx.state.user as any).id;
 		const subjectId = ctx.params.subjectId;
 		ctx.assert(mongoose.isValidObjectId(subjectId), 400);
 
 		const session = await mongoose.startSession();
-		
+
 		try {
-			let result: {liked: boolean, likes: number} | null = null;
+			let result: { liked: boolean, likes: number } | null = null;
 
 			await session.withTransaction(async () => {
 				const subject = await SubjectModel.findById(subjectId).session(session);
 				ctx.assert(subject, 404);
 
 				const addRes = await UserModel.updateOne(
-					{_id: userId, liked_subject: { $ne: subjectId}},
-					{ $addToSet: {liked_subject: subjectId}},
+					{ _id: userId, liked_subject: { $ne: subjectId } },
+					{ $addToSet: { liked_subject: subjectId } },
 					{ session }
 				)
 				console.log("state.user =", ctx.state.user);
@@ -201,35 +202,35 @@ lectureRouter.post('/api/subjects/:subjectId/like',
 				if (addRes.modifiedCount === 1) {
 					const updated = await SubjectModel.findByIdAndUpdate(
 						subjectId,
-						{ $inc: { likes: 1}},
-						{ new: true, session}
+						{ $inc: { likes: 1 } },
+						{ new: true, session }
 					)
 					ctx.assert(updated, 404);
 
-					result = {liked: true, likes: updated.likes}; 
+					result = { liked: true, likes: updated.likes };
 					return;
 				}
 
-				const pullReq = await UserModel.updateOne (
-					{_id: userId, liked_subject: subjectId},
-					{ $pull: {liked_subject: subjectId}},
+				const pullReq = await UserModel.updateOne(
+					{ _id: userId, liked_subject: subjectId },
+					{ $pull: { liked_subject: subjectId } },
 					{ session }
 				)
 
 				if (pullReq.modifiedCount === 1) {
 					const updated = await SubjectModel.findByIdAndUpdate(
 						subjectId,
-						{ $inc: {likes: -1} },
+						{ $inc: { likes: -1 } },
 						{ new: true, session }
 					)
 
 					ctx.assert(updated, 404);
 
-					result = {liked: false, likes: updated.likes}
+					result = { liked: false, likes: updated.likes }
 					return;
 				}
 
-				result = {liked: subject.likes > 0, likes: subject.likes}
+				result = { liked: subject.likes > 0, likes: subject.likes }
 			})
 			ctx.status = 200;
 			ctx.body = result
@@ -326,5 +327,44 @@ lectureRouter.post('/api/lessons',
 
 		ctx.status = 201;
 	})
+
+// Edit lesson
+lectureRouter.patch('/api/lessons/:lessonId',
+	passport.authenticate('jwt', { session: false }),
+	async (ctx: Context, next: Next) => {
+		if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
+		ctx.assert(ctx.state.user.roles.includes('admin'), 403);
+
+		const lessonId = ctx.params.lessonId;
+		ctx.assert(mongoose.isValidObjectId(lessonId), 400)
+
+		const tempSchema = z.object({
+			title: z.string(),
+			content: z.string(),
+		})
+
+		const parsed = tempSchema.safeParse(ctx.request.body)
+		ctx.assert(parsed.success, 400);
+
+		const session = await mongoose.startSession()
+		try {
+			await session.withTransaction(async () => {
+				const lesson = await LessonModel.findById(lessonId).session(session);
+				ctx.assert(lesson, 404);
+
+				lesson.title = parsed.data.title;
+				lesson.content = parsed.data?.content;
+				await lesson.save({ session, validateModifiedOnly: true });
+			})
+			ctx.status = 200
+		} catch(err) {
+			console.log("profile", err)
+			throw err;		
+		} finally {
+			session.endSession()
+			await next();
+		}
+	}
+)
 
 export default lectureRouter;
