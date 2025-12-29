@@ -30,6 +30,8 @@ mongoose.connection.once('open', () =>
 
 const app = new Koa()
 
+app.proxy = true;
+
 app.use(cors({
   origin: (ctx) => ctx.request.header.origin || "*",
   credentials: true,
