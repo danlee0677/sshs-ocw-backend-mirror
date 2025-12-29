@@ -2,12 +2,14 @@ import { z } from 'zod';
 
 export const subjectSchema = z.object({
   title: z.string(),
+  image_url: z.string(),
   description: z.string(),
   likes: z.number(),
 })
 
 export const subjectPatchSchema = z.object({
   title: z.string(),
+  image_url: z.string(),
   description: z.string(),
   likes: z.number(),
   contents: z.array(z.object({

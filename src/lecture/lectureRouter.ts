@@ -34,6 +34,7 @@ lectureRouter.post('/api/subjects',
 
 		const subject = await SubjectModel.create({
 			title: parsed.data.title,
+			image_url: parsed.data.image_url,
 			description: parsed.data.description,
 			likes: parsed.data.likes,
 		})
@@ -63,6 +64,7 @@ lectureRouter.get('/api/subjects/:subjectId', async (ctx: Context, next: Next) =
 
 	ctx.body = {
 		title: subject.title,
+		image_url: subject.image_url,
 		description: subject.description,
 		likes: subject.likes,
 		_id: subject._id,
@@ -128,6 +130,7 @@ lectureRouter.patch('/api/subjects/:subjectId',
 				ctx.assert(subject, 404);
 
 				subject.title = parsed.data.title;
+				subject.image_url = parsed.data.image_url;
 				subject.description = parsed.data.description;
 				await subject.save({ session, validateModifiedOnly: true });
 
