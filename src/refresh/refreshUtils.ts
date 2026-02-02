@@ -23,24 +23,31 @@ export function signAccessToken(user: ContextUser) {
 export async function mintRefreshToken(user: ContextUser) {
   const jti = randomUUID();
   const expSec = Math.floor(Date.now() / 1000) + REFRESH_EXPIRE_SEC;
-  await RefreshModel.create({
-    jti: jti, 
-    userId: user._id,
-    expiresAt: new Date(expSec * 1000)
-  })
 
   const refreshToken = jwt.sign(
-    { sub: user._id },
+    { 
+      sub: user._id,
+      jti: jti,
+    },
     process.env.REFRESH_JWT_SECRET as Secret,
     { 
       algorithm: process.env.JWT_ALGORITHM as Algorithm, 
       expiresIn: REFRESH_EXPIRE_SEC,
-      jwtid: jti,
       issuer: "sshs-ocw"
     }
   )
 
-  return refreshToken
+  await RefreshModel.create({
+    jti: jti, 
+    userId: user._id,
+    token: refreshToken, 
+    expiresAt: new Date(expSec * 1000)
+  })
+
+  return {
+    token: refreshToken,
+    jti: jti,
+  }
 }
 
 export function setRefreshCookie(ctx: Context, refreshToken: string, maxAgeMs = REFRESH_EXPIRE_SEC * 1000) {

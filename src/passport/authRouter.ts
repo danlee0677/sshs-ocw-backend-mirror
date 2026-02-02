@@ -64,7 +64,7 @@ authRouter.get("/api/auth/login/google/callback",
   async function(ctx: Context, next: Next) {
     if (ctx.state.user) {
       const user = await decodeUsername(ctx.state.user, ctx);
-      const refresh = await mintRefreshToken(user);
+      const { token: refresh } = await mintRefreshToken(user);
       setRefreshCookie(ctx, refresh);
       
       ctx.status = 200;
@@ -88,7 +88,7 @@ authRouter.get("/api/auth/login/kakao/callback",
   async function(ctx: Context, next: Next) {
     if (ctx.state.user) {
       const user = await decodeUsername(ctx.state.user, ctx);
-      const refresh = await mintRefreshToken(user);
+      const { token: refresh } = await mintRefreshToken(user);
       setRefreshCookie(ctx, refresh);      
       ctx.status = 200;
 
@@ -112,7 +112,7 @@ authRouter.get("/api/auth/login/naver/callback",
   async function (ctx: Context, next: Next) {
     if (ctx.state.user) {
       const user = await decodeUsername(ctx.state.user, ctx);
-      const refresh = await mintRefreshToken(user);
+      const { token: refresh } = await mintRefreshToken(user);
       setRefreshCookie(ctx, refresh);
       
       ctx.status = 200;
@@ -139,31 +139,65 @@ authRouter.post("/api/auth/refresh", async function(ctx: Context, next: Next) {
     const { sub: userId, jti } = payload;
     ctx.assert(userId && jti, 401, "Invalid refresh");
 
-    const refresh = await RefreshModel.findOne({ jti: jti }).exec();
+    const refresh = await RefreshModel.findOneAndUpdate({ 
+      jti: jti, userId: userId,
+    }, { 
+      $setOnInsert: { jti: jti }
+    }, { new: false }).exec();
+
     ctx.assert(refresh, 401, "Unknown refresh")
 
+    const grace_period = 15000; // 15s
+
+    // check if the refresh token was used before
     if (refresh.usedAt) {
-      refresh.expiresAt = new Date()
-      await refresh.save()
-      ctx.throw(401, "Refresh already used");
+      const now = new Date();
+
+      if (now.getTime() - refresh.usedAt.getTime() < grace_period) {
+        const alreadyCreatedToken = await RefreshModel.findOne({ jti: refresh.replacedBy });
+
+        if (alreadyCreatedToken) {
+          const user = await UserModel.findById(userId).lean().exec();
+          if (user) {
+            const accessToken = signAccessToken(user);
+            setRefreshCookie(ctx, alreadyCreatedToken.token);
+            ctx.body = { token: accessToken, token_type: "Bearer", expires_in: 900 }
+            return await next();
+          }
+        }
+      } else {
+        // remove all refresh tokens for the user
+        await RefreshModel.deleteMany({ userId: refresh.userId }).exec();
+        ctx.throw(401, "Security Alert: Token Reuse");
+      }
     }
 
     ctx.assert(refresh.expiresAt.getTime() >= Date.now(), 401, "Expired refresh")
     
     const user = await UserModel.findById(userId).lean().exec();
     ctx.assert(user, 401, "User not found")
-
-    refresh.usedAt = new Date()
-    refresh.expiresAt = new Date()
-    await refresh.save();
+    
+    await RefreshModel.updateMany({ 
+      userId: refresh.userId, usedAt: null, jti: { $ne: jti } 
+    }, { $set: {
+      usedAt: new Date(),
+      expiresAt: new Date(Date.now() + grace_period),
+    }});
 
     const accessToken = signAccessToken(user);
-    const newRefresh = await mintRefreshToken(user);
-    setRefreshCookie(ctx, newRefresh)
+    const { token: newRefresh, jti: newJti} = await mintRefreshToken(user);
+
+    refresh.usedAt = new Date();
+    refresh.expiresAt = new Date(Date.now() + grace_period);
+    refresh.replacedBy = newJti;
+    await refresh.save();
+
+    setRefreshCookie(ctx, newRefresh);
     ctx.body = { token: accessToken, token_type: "Bearer", expires_in: 900 }
 
     ctx.status = 200;
-  } catch (err) {
+  } catch (err: any) {
+    if (err.status) 
     ctx.throw(401, "Invalid refresh")
   }
   await next();
