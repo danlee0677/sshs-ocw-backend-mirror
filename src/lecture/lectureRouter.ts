@@ -6,7 +6,7 @@ import { UserModel } from '../user/userModel';
 import { ModuleModel } from './module/moduleModel';
 import { subjectPatchSchema, subjectSchema } from './subject/subjectType';
 import { lessonPostSchema } from './lesson/lessonType';
-import mongoose, { Mongoose, Types } from 'mongoose';
+import mongoose, { isValidObjectId, Mongoose, Types } from 'mongoose';
 import passport from 'koa-passport'
 import { z } from 'zod';
 
@@ -18,10 +18,34 @@ lectureRouter.get('/api/subjects', async (ctx: Context, next: Next) => {
 	const filteredSubjects = subjects.map((subject) => {
 		return { _id: subject._id, title: subject.title, createdAt: subject.createdAt }
 	})
+  
 	ctx.body = filteredSubjects;
 	ctx.status = 200;
-	await next();
 })
+
+// get liked subjects by user
+lectureRouter.get('/api/subjects/liked', 
+  passport.authenticate('jwt', { session: false }),
+  async (ctx: Context, next: Next) => {
+    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
+
+    ctx.assert(isValidObjectId(ctx.state.user._id), 400, "User _id is malformed")
+    const user = await UserModel.findById(ctx.state.user._id).exec();
+
+    ctx.assert(user, 404, "Cannot find corresponding user")
+
+    const subjects = await SubjectModel.find({ _id: { $in: user.liked_subject }}).lean().exec();
+
+    const filteredSubjects = subjects.map((sub) => ({ 
+      _id: sub._id, 
+      title: sub.title, 
+      description: sub.description,
+      image_url: sub.image_url,
+    }));
+
+    ctx.status = 200;
+    ctx.body = filteredSubjects;
+  })
 
 // create new subject
 lectureRouter.post('/api/subjects',
@@ -195,9 +219,6 @@ lectureRouter.post('/api/subjects/:subjectId/like',
 					{ $addToSet: { liked_subject: subjectId } },
 					{ session }
 				)
-				console.log("state.user =", ctx.state.user);
-				console.log("userId =", userId);
-				console.log(addRes)
 
 				if (addRes.modifiedCount === 1) {
 					const updated = await SubjectModel.findByIdAndUpdate(

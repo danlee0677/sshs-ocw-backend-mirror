@@ -11,9 +11,9 @@ const opts: StrategyOptions = {
 export var jwtStrategy = new JwtStrategy(opts, async function(payload: any, cb) {
   try {
     if (!payload.sub) return cb(null, false, { message: "Invalid Token" })
-    
+
     return cb(null, {
-      id: payload.sub,
+      _id: payload.sub,
       username: payload.username,
       roles: payload.roles,
       pfp_url: payload.pfp_url,
