@@ -1,6 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
 
-const lessonSchema = new Schema({
+export const lessonSchema = new Schema({
   createdBy: { type: Schema.Types.ObjectId, ref: 'user', required: true },
   subject:   { type: Schema.Types.ObjectId, ref: 'subject', required: true },
   title:     { type: String, required: true },

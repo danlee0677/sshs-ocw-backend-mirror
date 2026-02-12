@@ -8,9 +8,9 @@ export const accessTokenUserSchema = z.object({
   roles: z.array(z.string()),
   liked_subject: z.array(z.string()),
   recent_viewed: z.array(z.object({
-    subjectId: z.string(),
-    lessonId: z.string(),
-    viewedAt: z.date(),
+    subjectId: z.coerce.string(),
+    lessonId: z.coerce.string(),
+    viewedAt: z.coerce.date(),
     image_url: z.string(),
     subject_title: z.string(),
     lesson_title: z.string(),

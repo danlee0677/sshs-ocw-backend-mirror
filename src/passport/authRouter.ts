@@ -229,12 +229,15 @@ authRouter.get("/api/auth/verify", async function (ctx: Context, next: Next) {
   const payload = verifyAccessToken(token)
   
   ctx.assert(payload, 401);
+
+  // fix user
   ctx.body = { 
     _id: payload._id, 
     username: payload.username, 
     roles: payload.roles, 
     liked_subject: payload.liked_subject,
     pfp_url: payload.pfp_url,
+    recent_viewed: payload.recent_viewed,
   }
   ctx.status = 200
 

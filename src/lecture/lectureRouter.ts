@@ -1,16 +1,30 @@
 import { Context, Next } from 'koa';
 import Router from '@koa/router';
-import { LessonModel } from './lesson/lessonModel';
+import { LessonModel, lessonSchema } from './lesson/lessonModel';
 import { SubjectModel } from './subject/subjectModel';
 import { UserModel } from '../user/userModel';
 import { ModuleModel } from './module/moduleModel';
 import { subjectPatchSchema, subjectSchema } from './subject/subjectType';
 import { lessonPostSchema } from './lesson/lessonType';
-import mongoose, { isValidObjectId, Types } from 'mongoose';
+import mongoose, { isValidObjectId, Types, HydratedDocumentFromSchema } from 'mongoose';
 import passport from 'koa-passport'
 import { z } from 'zod';
+import { ContextUser } from '../types/user';
 
 const lectureRouter = new Router();
+
+const optionalAuth = (ctx: Context, next: Next) => {
+  return passport.authenticate('jwt', { session: false }, 
+    async (err: any, user: ContextUser | false, info: any, status: any) => {
+    if (err)
+      throw err;
+    
+    if (user) 
+      ctx.state.user = user;
+
+    await next();
+  })(ctx, next);
+}
 
 // list all subjects
 lectureRouter.get('/api/subjects', async (ctx: Context, next: Next) => {
@@ -263,14 +277,60 @@ lectureRouter.post('/api/subjects/:subjectId/like',
 	}
 )
 
+// update user history
+const updateUserHistory = async (user: ContextUser, lesson: HydratedDocumentFromSchema<typeof lessonSchema>) => {
+  const subject = await SubjectModel.findById(lesson.subject);
+
+  if (subject) {
+    const newItem = {
+      subjectId: lesson.subject,
+      lessonId: lesson._id,
+      subject_title: subject.title,
+      lesson_title: lesson.title,
+      image_url: subject.image_url,
+      viewedAt: new Date(),
+    }
+
+    await UserModel.findByIdAndUpdate(user._id, [
+      {
+        $set: {
+          recent_viewed: {
+            $slice: [
+              {
+                $concatArrays: [
+                  [newItem],
+                  {
+                    $filter: {
+                      input: { $ifNull: ["$recent_viewed", []] },
+                      as: "item",
+                      cond: { $ne: ["$$item.subjectId", newItem.subjectId] }
+                    }
+                  }
+                ]
+              },
+              4 // max history storage
+            ]
+          }
+        }
+      }
+    ])
+  }
+}
+
 // get single lesson content
-lectureRouter.get('/api/lessons/:lessonId', async (ctx: Context, next: Next) => {
+lectureRouter.get('/api/lessons/:lessonId', 
+  optionalAuth, async (ctx: Context, next: Next) => {
 	const lessonId = ctx.params.lessonId;
 	ctx.assert(mongoose.isValidObjectId(lessonId), 400);
 
 	const lesson = await LessonModel.findOne({ _id: lessonId }).exec();
 	//                                .populate("createdBy", ["_id", "name"])
 	ctx.assert(lesson, 404);
+
+  if (ctx.state.user) {
+    const user = ctx.state.user
+    updateUserHistory(user, lesson).catch((err) => (console.error("Err on updating History: ", err)));
+  }
 
 	const filteredLesson = {
 		title: lesson.title,
@@ -281,7 +341,6 @@ lectureRouter.get('/api/lessons/:lessonId', async (ctx: Context, next: Next) => 
 	}
 	ctx.body = filteredLesson;
 	ctx.status = 200;
-	await next()
 })
 
 // delete lesson
