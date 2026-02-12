@@ -18,7 +18,8 @@ export var kakaoStrategy = new KakaoStrategy({
           roles: user.roles,
           _id: user._id,
           pfp_url: user.pfp_url,
-          liked_subject: user.liked_subject
+          liked_subject: user.liked_subject,
+          recent_viewed: user.recent_viewed,
         })
       } else {
         await ProviderModel.findByIdAndDelete(provider._id);
@@ -29,6 +30,7 @@ export var kakaoStrategy = new KakaoStrategy({
         username: "default-user",
         roles: ['user'],
         liked_subject: [],
+        recent_viewed: [],
       })
       
       await ProviderModel.create({
@@ -42,7 +44,8 @@ export var kakaoStrategy = new KakaoStrategy({
         roles: new_user.roles,
         _id: new_user._id,
         pfp_url: new_user.pfp_url,
-        liked_subject: new_user.liked_subject
+        liked_subject: new_user.liked_subject,
+        recent_viewed: new_user.recent_viewed
       });
     } catch (err) {
       return await cb(err);

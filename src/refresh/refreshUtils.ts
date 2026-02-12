@@ -3,15 +3,23 @@ import { randomUUID } from "crypto";
 import jwt, { Algorithm, Secret, SignOptions } from 'jsonwebtoken'
 import { RefreshModel } from "./refreshModel";
 import { Context } from "koa";
+import mongoose from "mongoose";
 
 const REFRESH_EXPIRE_SEC = 18 * 24 * 60 * 60;
 
 
 export function signAccessToken(user: ContextUser) {
   return jwt.sign(
-    { _id: user._id, username: user.username, roles: user.roles, liked_subject: user.liked_subject, pfp_url: user.pfp_url },
+    {
+      _id: user._id, 
+      username: user.username, 
+      roles: user.roles, 
+      liked_subject: user.liked_subject,
+      pfp_url: user.pfp_url, 
+      recent_viewed: user.recent_viewed,
+    },
     (process.env.JWT_SECRET as Secret),
-    { 
+    {
       algorithm: (process.env.JWT_ALGORITHM as Algorithm),
       subject: user._id.toString(),
       expiresIn: 900,
@@ -20,27 +28,27 @@ export function signAccessToken(user: ContextUser) {
   )
 }
 
-export async function mintRefreshToken(user: ContextUser) {
+export async function mintRefreshToken(userId: string | mongoose.Types.ObjectId) {
   const jti = randomUUID();
   const expSec = Math.floor(Date.now() / 1000) + REFRESH_EXPIRE_SEC;
 
   const refreshToken = jwt.sign(
-    { 
-      sub: user._id,
+    {
+      sub: userId,
       jti: jti,
     },
     process.env.REFRESH_JWT_SECRET as Secret,
-    { 
-      algorithm: process.env.JWT_ALGORITHM as Algorithm, 
+    {
+      algorithm: process.env.JWT_ALGORITHM as Algorithm,
       expiresIn: REFRESH_EXPIRE_SEC,
       issuer: "sshs-ocw"
     }
   )
 
   await RefreshModel.create({
-    jti: jti, 
-    userId: user._id,
-    token: refreshToken, 
+    jti: jti,
+    userId: userId,
+    token: refreshToken,
     expiresAt: new Date(expSec * 1000)
   })
 

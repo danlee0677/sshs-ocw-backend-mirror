@@ -6,7 +6,7 @@ import { UserModel } from '../user/userModel';
 import { ModuleModel } from './module/moduleModel';
 import { subjectPatchSchema, subjectSchema } from './subject/subjectType';
 import { lessonPostSchema } from './lesson/lessonType';
-import mongoose, { isValidObjectId, Mongoose, Types } from 'mongoose';
+import mongoose, { isValidObjectId, Types } from 'mongoose';
 import passport from 'koa-passport'
 import { z } from 'zod';
 
@@ -201,7 +201,7 @@ lectureRouter.post('/api/subjects/:subjectId/like',
 	async (ctx: Context, next: Next) => {
 		if (!ctx.state.user) throw new Error("assertUser: missing User(RequireAuth not mounted?)");
 
-		const userId = (ctx.state.user as any).id;
+		const userId = ctx.state.user._id;
 		const subjectId = ctx.params.subjectId;
 		ctx.assert(mongoose.isValidObjectId(subjectId), 400);
 
@@ -216,16 +216,17 @@ lectureRouter.post('/api/subjects/:subjectId/like',
 
 				const addRes = await UserModel.updateOne(
 					{ _id: userId, liked_subject: { $ne: subjectId } },
-					{ $addToSet: { liked_subject: subjectId } },
-					{ session }
-				)
+					{ $addToSet: { liked_subject: subjectId } }
+				).session(session);
+
 
 				if (addRes.modifiedCount === 1) {
 					const updated = await SubjectModel.findByIdAndUpdate(
 						subjectId,
 						{ $inc: { likes: 1 } },
-						{ new: true, session }
-					)
+						{ new: true }
+					).session(session);
+
 					ctx.assert(updated, 404);
 
 					result = { liked: true, likes: updated.likes };
@@ -234,16 +235,15 @@ lectureRouter.post('/api/subjects/:subjectId/like',
 
 				const pullReq = await UserModel.updateOne(
 					{ _id: userId, liked_subject: subjectId },
-					{ $pull: { liked_subject: subjectId } },
-					{ session }
-				)
+					{ $pull: { liked_subject: subjectId } }
+				).session(session);
 
 				if (pullReq.modifiedCount === 1) {
 					const updated = await SubjectModel.findByIdAndUpdate(
 						subjectId,
 						{ $inc: { likes: -1 } },
-						{ new: true, session }
-					)
+						{ new: true }
+					).session(session);
 
 					ctx.assert(updated, 404);
 
@@ -260,8 +260,6 @@ lectureRouter.post('/api/subjects/:subjectId/like',
 		} finally {
 			await session.endSession();
 		}
-
-		await next()
 	}
 )
 

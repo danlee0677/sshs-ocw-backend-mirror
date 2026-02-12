@@ -7,7 +7,6 @@ import { UserModel } from "../user/userModel";
 import { mintRefreshToken, signAccessToken, setRefreshCookie, verifyAccessToken } from "../refresh/refreshUtils";
 import { z } from 'zod'
 import { ContextUser } from "../types/user";
-import { userCreateSchema } from "../user/userType";
 
 const authRouter = new Router();
 
@@ -64,7 +63,8 @@ authRouter.get("/api/auth/login/google/callback",
   async function(ctx: Context, next: Next) {
     if (ctx.state.user) {
       const user = await decodeUsername(ctx.state.user, ctx);
-      const { token: refresh } = await mintRefreshToken(user);
+
+      const { token: refresh } = await mintRefreshToken(user._id);
       setRefreshCookie(ctx, refresh);
       
       ctx.status = 200;
@@ -88,7 +88,8 @@ authRouter.get("/api/auth/login/kakao/callback",
   async function(ctx: Context, next: Next) {
     if (ctx.state.user) {
       const user = await decodeUsername(ctx.state.user, ctx);
-      const { token: refresh } = await mintRefreshToken(user);
+
+      const { token: refresh } = await mintRefreshToken(user._id);
       setRefreshCookie(ctx, refresh);      
       ctx.status = 200;
 
@@ -112,7 +113,8 @@ authRouter.get("/api/auth/login/naver/callback",
   async function (ctx: Context, next: Next) {
     if (ctx.state.user) {
       const user = await decodeUsername(ctx.state.user, ctx);
-      const { token: refresh } = await mintRefreshToken(user);
+
+      const { token: refresh } = await mintRefreshToken(user._id);
       setRefreshCookie(ctx, refresh);
       
       ctx.status = 200;
@@ -185,7 +187,7 @@ authRouter.post("/api/auth/refresh", async function(ctx: Context, next: Next) {
     }});
 
     const accessToken = signAccessToken(user);
-    const { token: newRefresh, jti: newJti} = await mintRefreshToken(user);
+    const { token: newRefresh, jti: newJti} = await mintRefreshToken(user._id);
 
     refresh.usedAt = new Date();
     refresh.expiresAt = new Date(Date.now() + grace_period);
