@@ -161,12 +161,12 @@ authRouter.post("/api/auth/refresh", async function (ctx: Context, next: Next) {
           let attempts = 0;
 
           while (!replacementJti && attempts < 5) {
-             await new Promise(r => setTimeout(r, 500)); // Wait 500ms
-             const updated = await RefreshModel.findById(usedToken._id).lean().exec();
-             replacementJti = updated?.replacedBy;
-             attempts++;
+            await new Promise(r => setTimeout(r, 500)); // Wait 500ms
+            const updated = await RefreshModel.findById(usedToken._id).lean().exec();
+            replacementJti = updated?.replacedBy;
+            attempts++;
           }
-          
+
           if (replacementJti) {
             const alreadyCreatedToken = await RefreshModel.findOne({ jti: replacementJti, userId: userId });
 
@@ -194,7 +194,7 @@ authRouter.post("/api/auth/refresh", async function (ctx: Context, next: Next) {
     const user = await UserModel.findById(userId).lean().exec();
 
     ctx.assert(user, 401, "Corresponding user does not exist");
-    
+
     const accessToken = await signAccessToken(user);
     const { token: newRefresh, jti: newJti } = await mintRefreshToken(user._id);
 
@@ -213,22 +213,19 @@ authRouter.post("/api/auth/refresh", async function (ctx: Context, next: Next) {
   await next();
 })
 
-authRouter.post("/api/auth/logout", async function (ctx: Context, next: Next) {
-  const refreshToken = ctx.cookies.get("refresh_token");
-  if (refreshToken) {
-    try {
-      const { jti } = jwt.decode(refreshToken) as any || {};
-      if (jti) await RefreshModel.updateOne({ jti: jti }, { $set: { expiresAt: Date.now() } });
-    } catch { }
-  }
-  ctx.cookies.set("refresh_token", "", {
-    httpOnly: true,
-    maxAge: 0,
-    path: "/auth/refresh"
+authRouter.post("/api/auth/logout",
+  passport.authenticate('jwt', { session: false }),
+  async function (ctx: Context, next: Next) {
+    if (!ctx.state.user) throw new Error("user not found: passport not mounted?")
+    await RefreshModel.deleteMany({ userId: ctx.state.user._id }).exec();
+    ctx.cookies.set("refresh_token", "", {
+      httpOnly: true,
+      maxAge: 0,
+      path: "/auth/refresh"
+    })
+    ctx.status = 204;
+    await next()
   })
-  ctx.status = 204;
-  await next()
-})
 
 authRouter.get("/api/auth/verify", async function (ctx: Context, next: Next) {
   const data = ctx.get("Authorization")
