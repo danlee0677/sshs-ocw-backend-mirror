@@ -56,6 +56,7 @@ lectureRouter.get('/api/subjects/liked',
       title: sub.title, 
       description: sub.description,
       image_url: sub.image_url,
+      tags: sub.tags,
     }));
 
     ctx.status = 200;
@@ -77,6 +78,7 @@ lectureRouter.post('/api/subjects',
 			image_url: parsed.data.image_url,
 			description: parsed.data.description,
 			likes: parsed.data.likes,
+      tags: parsed.data.tags,
 		})
 
 		ctx.body = {
@@ -108,6 +110,7 @@ lectureRouter.get('/api/subjects/:subjectId', async (ctx: Context, next: Next) =
 		description: subject.description,
 		likes: subject.likes,
 		_id: subject._id,
+    tags: subject.tags,
 		contents: filteredLessons,
 	}
 
@@ -172,6 +175,7 @@ lectureRouter.patch('/api/subjects/:subjectId',
 				subject.title = parsed.data.title;
 				subject.image_url = parsed.data.image_url
 				subject.description = parsed.data.description;
+        subject.tags = parsed.data.tags;
 				await subject.save({ session, validateModifiedOnly: true });
 
 				const newLessonIds = parsed.data.contents.map(x => x._id);
