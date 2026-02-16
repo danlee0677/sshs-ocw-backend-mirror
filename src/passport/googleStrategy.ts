@@ -20,7 +20,7 @@ export var googleStrategy = new GoogleStrategy({
         _id: user._id,
         pfp_url: user.pfp_url,
         liked_subject: user.liked_subject,
-        recent_viewed: user.recent_viewed,
+        email: user.email,
       });
     } else {
       await ProviderModel.findByIdAndDelete(provider._id);
@@ -32,7 +32,7 @@ export var googleStrategy = new GoogleStrategy({
       username: "default-user",
       roles: ['user'],
       liked_subject: [],
-      recent_viewed: [],
+      email: profile.emails ? profile.emails[0].value : "no_email",
     })
     // create new provider
     await ProviderModel.create({
@@ -46,7 +46,7 @@ export var googleStrategy = new GoogleStrategy({
       _id: new_user._id,
       pfp_url: new_user.pfp_url,
       liked_subject: new_user.liked_subject,
-      recent_viewed: new_user.recent_viewed,
+      email: new_user.email,
     });
   } catch (err) {
     console.log(err)

@@ -20,6 +20,7 @@
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-kakao": "^1.0.3",
     "@types/passport-naver": "^1.0.4",
+    "cloudinary": "^2.9.0",
     "dotenv": "^17.2.1",
     "koa": "^3.0.1",
     "koa-bodyparser": "^4.4.1",

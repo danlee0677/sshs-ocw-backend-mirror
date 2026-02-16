@@ -54,7 +54,7 @@ authRouter.get("/api/auth/login/google", async function (ctx: Context, next: Nex
     const state = parseUsername(ctx)
     
     return passport.authenticate(
-      'google', { state: state, scope: ['profile'], session: false }
+      'google', { state: state, scope: ['profile', 'email'], session: false }
     )(ctx, next);
   });
 
@@ -161,11 +161,12 @@ authRouter.post("/api/auth/refresh", async function(ctx: Context, next: Next) {
         if (alreadyCreatedToken) {
           const user = await UserModel.findById(userId).lean().exec();
           if (user) {
-            const accessToken = signAccessToken(user);
+            const accessToken = await signAccessToken(user);
             setRefreshCookie(ctx, alreadyCreatedToken.token);
             ctx.body = { token: accessToken, token_type: "Bearer", expires_in: 900 }
             return await next();
           }
+            
         }
       } else {
         // remove all refresh tokens for the user
@@ -186,7 +187,8 @@ authRouter.post("/api/auth/refresh", async function(ctx: Context, next: Next) {
       expiresAt: new Date(Date.now() + grace_period),
     }});
 
-    const accessToken = signAccessToken(user);
+    const accessToken = await signAccessToken(user);
+    
     const { token: newRefresh, jti: newJti} = await mintRefreshToken(user._id);
 
     refresh.usedAt = new Date();
@@ -237,7 +239,7 @@ authRouter.get("/api/auth/verify", async function (ctx: Context, next: Next) {
     roles: payload.roles, 
     liked_subject: payload.liked_subject,
     pfp_url: payload.pfp_url,
-    recent_viewed: payload.recent_viewed,
+    email: payload.email,
   }
   ctx.status = 200
 

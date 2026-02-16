@@ -1,14 +1,16 @@
-import { accessTokenUserSchema, ContextUser } from "../types/user";
+import { AccessTokenRecentViewed, AccessTokenUser, accessTokenUserSchema, ContextUser } from "../types/user";
 import { randomUUID } from "crypto";
 import jwt, { Algorithm, Secret, SignOptions } from 'jsonwebtoken'
 import { RefreshModel } from "./refreshModel";
 import { Context } from "koa";
 import mongoose from "mongoose";
+import { LessonModel } from "../lecture/lesson/lessonModel";
+import { SubjectModel } from "../lecture/subject/subjectModel";
 
 const REFRESH_EXPIRE_SEC = 18 * 24 * 60 * 60;
 
 
-export function signAccessToken(user: ContextUser) {
+export async function signAccessToken(user: ContextUser) {
   return jwt.sign(
     {
       _id: user._id, 
@@ -16,7 +18,7 @@ export function signAccessToken(user: ContextUser) {
       roles: user.roles, 
       liked_subject: user.liked_subject,
       pfp_url: user.pfp_url, 
-      recent_viewed: user.recent_viewed,
+      email: user.email,
     },
     (process.env.JWT_SECRET as Secret),
     {

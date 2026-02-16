@@ -19,6 +19,7 @@ export var jwtStrategy = new JwtStrategy(opts, async function(payload: any, cb) 
       pfp_url: payload.pfp_url,
       liked_subject: payload.liked_subject,
       recent_viewed: payload.recent_viewed,
+      email: payload.email,
     })
     
   } catch (err) {

@@ -5,6 +5,7 @@ export const lessonPostSchema = z.object({
   title: z.string(),
   content: z.string(),
   createdBy: z.string(),
+  student_only: z.boolean(),
 })
 
 export type Lesson = z.infer<typeof lessonPostSchema>

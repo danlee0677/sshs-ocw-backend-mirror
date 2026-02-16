@@ -10,6 +10,7 @@ import mongoose, { isValidObjectId, Types, HydratedDocumentFromSchema } from 'mo
 import passport from 'koa-passport'
 import { z } from 'zod';
 import { ContextUser } from '../types/user';
+import { ProgressModel } from '../progress/ProgressModel';
 
 const lectureRouter = new Router();
 
@@ -279,42 +280,11 @@ lectureRouter.post('/api/subjects/:subjectId/like',
 
 // update user history
 const updateUserHistory = async (user: ContextUser, lesson: HydratedDocumentFromSchema<typeof lessonSchema>) => {
-  const subject = await SubjectModel.findById(lesson.subject);
-
-  if (subject) {
-    const newItem = {
-      subjectId: lesson.subject,
-      lessonId: lesson._id,
-      subject_title: subject.title,
-      lesson_title: lesson.title,
-      image_url: subject.image_url,
-      viewedAt: new Date(),
-    }
-
-    await UserModel.findByIdAndUpdate(user._id, [
-      {
-        $set: {
-          recent_viewed: {
-            $slice: [
-              {
-                $concatArrays: [
-                  [newItem],
-                  {
-                    $filter: {
-                      input: { $ifNull: ["$recent_viewed", []] },
-                      as: "item",
-                      cond: { $ne: ["$$item.subjectId", newItem.subjectId] }
-                    }
-                  }
-                ]
-              },
-              4 // max history storage
-            ]
-          }
-        }
-      }
-    ])
-  }
+  await ProgressModel.findOneAndUpdate(
+    { userId: user._id, subjectId: lesson.subject, lessonId: lesson._id },
+    { $set: { viewedAt: new Date() }},
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  )
 }
 
 // get single lesson content
@@ -323,9 +293,14 @@ lectureRouter.get('/api/lessons/:lessonId',
 	const lessonId = ctx.params.lessonId;
 	ctx.assert(mongoose.isValidObjectId(lessonId), 400);
 
-	const lesson = await LessonModel.findOne({ _id: lessonId }).exec();
-	//                                .populate("createdBy", ["_id", "name"])
+	const lesson = await LessonModel.findOne({ _id: lessonId })
+	                                .populate({ path: 'createdBy', select: 'username'});
 	ctx.assert(lesson, 404);
+  
+  const isStudentRegex: RegExp = /@sshs\.hs\.kr$/;
+
+  if (lesson.student_only && ((!ctx.state.user) || (!ctx.state.user.roles.includes('admin') && !isStudentRegex.test(ctx.state.user.email))))
+    ctx.throw(403, "Cannot view SSHS only material");
 
   if (ctx.state.user) {
     const user = ctx.state.user
@@ -337,6 +312,7 @@ lectureRouter.get('/api/lessons/:lessonId',
 		content: lesson.content,
 		createdBy: lesson.createdBy,
 		subject: lesson.subject,
+    student_only: lesson.student_only,
 		_id: lesson._id,
 	}
 	ctx.body = filteredLesson;
@@ -401,6 +377,7 @@ lectureRouter.post('/api/lessons',
 			subject: subject._id,
 			content: parsed.data.content,
 			order: lessons.length,
+      student_only: parsed.data.student_only,
 		})
 
 		ctx.status = 201;
@@ -419,6 +396,7 @@ lectureRouter.patch('/api/lessons/:lessonId',
 		const tempSchema = z.object({
 			title: z.string(),
 			content: z.string(),
+      student_only: z.boolean(),
 		})
 
 		const parsed = tempSchema.safeParse(ctx.request.body)
@@ -431,7 +409,8 @@ lectureRouter.patch('/api/lessons/:lessonId',
 				ctx.assert(lesson, 404);
 
 				lesson.title = parsed.data.title;
-				lesson.content = parsed.data?.content;
+				lesson.content = parsed.data.content;
+        lesson.student_only = parsed.data.student_only;
 				await lesson.save({ session, validateModifiedOnly: true });
 			})
 			ctx.status = 200
