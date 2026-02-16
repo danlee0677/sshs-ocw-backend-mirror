@@ -28,7 +28,7 @@ async function decodeUsername(user: ContextUser, ctx: Context) {
     const state = ctx.query.state
 
     ctx.assert(typeof state === "string", 400)
-    
+
     const decoded = jwt.verify(state, STATE_SECRET, { algorithms: ["HS256"] });
     const parsed = z.object({
       username: z.string(),
@@ -51,22 +51,22 @@ async function decodeUsername(user: ContextUser, ctx: Context) {
 }
 
 authRouter.get("/api/auth/login/google", async function (ctx: Context, next: Next) {
-    const state = parseUsername(ctx)
-    
-    return passport.authenticate(
-      'google', { state: state, scope: ['profile', 'email'], session: false }
-    )(ctx, next);
-  });
+  const state = parseUsername(ctx)
 
-authRouter.get("/api/auth/login/google/callback", 
+  return passport.authenticate(
+    'google', { state: state, scope: ['profile', 'email'], session: false }
+  )(ctx, next);
+});
+
+authRouter.get("/api/auth/login/google/callback",
   passport.authenticate('google', { session: false }),
-  async function(ctx: Context, next: Next) {
+  async function (ctx: Context, next: Next) {
     if (ctx.state.user) {
       const user = await decodeUsername(ctx.state.user, ctx);
 
       const { token: refresh } = await mintRefreshToken(user._id);
       setRefreshCookie(ctx, refresh);
-      
+
       ctx.status = 200;
       ctx.redirect(`${process.env.FRONTEND_URL}/login/complete`)
     } else {
@@ -77,20 +77,20 @@ authRouter.get("/api/auth/login/google/callback",
   });
 
 
-authRouter.get("/api/auth/login/kakao", async function(ctx: Context, next: Next) {
-    const state = parseUsername(ctx)
+authRouter.get("/api/auth/login/kakao", async function (ctx: Context, next: Next) {
+  const state = parseUsername(ctx)
 
-    return passport.authenticate('kakao', { state: state, session: false })(ctx, next);
-  });
+  return passport.authenticate('kakao', { state: state, session: false })(ctx, next);
+});
 
 authRouter.get("/api/auth/login/kakao/callback",
   passport.authenticate('kakao', { session: false }),
-  async function(ctx: Context, next: Next) {
+  async function (ctx: Context, next: Next) {
     if (ctx.state.user) {
       const user = await decodeUsername(ctx.state.user, ctx);
 
       const { token: refresh } = await mintRefreshToken(user._id);
-      setRefreshCookie(ctx, refresh);      
+      setRefreshCookie(ctx, refresh);
       ctx.status = 200;
 
       ctx.redirect(`${process.env.FRONTEND_URL}/login/complete`)
@@ -103,12 +103,12 @@ authRouter.get("/api/auth/login/kakao/callback",
 
 
 authRouter.get("/api/auth/login/naver", async function (ctx: Context, next: Next) {
-    const state = parseUsername(ctx)
+  const state = parseUsername(ctx)
 
-    return passport.authenticate('naver', { state: state, session: false })(ctx, next);
-  })
+  return passport.authenticate('naver', { state: state, session: false })(ctx, next);
+})
 
-authRouter.get("/api/auth/login/naver/callback", 
+authRouter.get("/api/auth/login/naver/callback",
   passport.authenticate('naver', { session: false }),
   async function (ctx: Context, next: Next) {
     if (ctx.state.user) {
@@ -116,7 +116,7 @@ authRouter.get("/api/auth/login/naver/callback",
 
       const { token: refresh } = await mintRefreshToken(user._id);
       setRefreshCookie(ctx, refresh);
-      
+
       ctx.status = 200;
       ctx.redirect(`${process.env.FRONTEND_URL}/login/complete`)
     } else {
@@ -126,7 +126,7 @@ authRouter.get("/api/auth/login/naver/callback",
   })
 
 
-authRouter.post("/api/auth/refresh", async function(ctx: Context, next: Next) {
+authRouter.post("/api/auth/refresh", async function (ctx: Context, next: Next) {
   const refreshToken = ctx.cookies.get("refresh_token")
   ctx.assert(refreshToken, 401, "No refresh token");
 
@@ -135,88 +135,94 @@ authRouter.post("/api/auth/refresh", async function(ctx: Context, next: Next) {
       algorithms: [process.env.JWT_ALGORITHM as Algorithm],
       issuer: "sshs-ocw"
     }) as jwt.JwtPayload;
-    
+
     ctx.assert(payload, 401, "Invalid refresh");
 
     const { sub: userId, jti } = payload;
     ctx.assert(userId && jti, 401, "Invalid refresh");
 
-    const refresh = await RefreshModel.findOneAndUpdate({ 
-      jti: jti, userId: userId,
-    }, { 
-      $setOnInsert: { jti: jti }
-    }, { new: false }).exec();
-
-    ctx.assert(refresh, 401, "Unknown refresh")
-
     const grace_period = 15000; // 15s
 
-    // check if the refresh token was used before
-    if (refresh.usedAt) {
-      const now = new Date();
-
-      if (now.getTime() - refresh.usedAt.getTime() < grace_period) {
-        const alreadyCreatedToken = await RefreshModel.findOne({ jti: refresh.replacedBy });
-
-        if (alreadyCreatedToken) {
-          const user = await UserModel.findById(userId).lean().exec();
-          if (user) {
-            const accessToken = await signAccessToken(user);
-            setRefreshCookie(ctx, alreadyCreatedToken.token);
-            ctx.body = { token: accessToken, token_type: "Bearer", expires_in: 900 }
-            return await next();
-          }
-            
-        }
-      } else {
-        // remove all refresh tokens for the user
-        await RefreshModel.deleteMany({ userId: refresh.userId }).exec();
-        ctx.throw(401, "Security Alert: Token Reuse");
+    const refresh = await RefreshModel.findOneAndUpdate({
+      jti: jti, userId: userId, usedAt: null,
+    }, {
+      $set: {
+        usedAt: new Date(),
+        expiresAt: new Date(Date.now() + grace_period),
       }
+    }, { new: true }).exec();
+
+    if (!refresh) {
+      const usedToken = await RefreshModel.findOne({ jti: jti, userId: userId });
+
+      if (usedToken && usedToken.usedAt) {
+        if (new Date().getTime() - usedToken.usedAt.getTime() < grace_period) {
+          let replacementJti: string | undefined = usedToken.replacedBy;
+          let attempts = 0;
+
+          while (!replacementJti && attempts < 5) {
+             await new Promise(r => setTimeout(r, 500)); // Wait 500ms
+             const updated = await RefreshModel.findById(usedToken._id).lean().exec();
+             replacementJti = updated?.replacedBy;
+             attempts++;
+          }
+          
+          if (replacementJti) {
+            const alreadyCreatedToken = await RefreshModel.findOne({ jti: replacementJti, userId: userId });
+
+            if (alreadyCreatedToken) {
+              const user = await UserModel.findById(userId).lean().exec();
+              if (user) {
+                const accessToken = await signAccessToken(user);
+                setRefreshCookie(ctx, alreadyCreatedToken.token);
+
+                ctx.body = { token: accessToken, token_type: "Bearer", expires_in: 900 };
+                ctx.status = 200;
+                return await next();
+              }
+            }
+          }
+        } else {
+          // remove all refresh tokens for the user
+          await RefreshModel.deleteMany({ userId: userId }).exec();
+          ctx.throw(401, "Security Alert: Token Reuse");
+        }
+      }
+      ctx.throw(401, "Invalid refresh")
     }
 
-    ctx.assert(refresh.expiresAt.getTime() >= Date.now(), 401, "Expired refresh")
-    
     const user = await UserModel.findById(userId).lean().exec();
-    ctx.assert(user, 401, "User not found")
-    
-    await RefreshModel.updateMany({ 
-      userId: refresh.userId, usedAt: null, jti: { $ne: jti } 
-    }, { $set: {
-      usedAt: new Date(),
-      expiresAt: new Date(Date.now() + grace_period),
-    }});
 
+    ctx.assert(user, 401, "Corresponding user does not exist");
+    
     const accessToken = await signAccessToken(user);
-    
-    const { token: newRefresh, jti: newJti} = await mintRefreshToken(user._id);
+    const { token: newRefresh, jti: newJti } = await mintRefreshToken(user._id);
 
-    refresh.usedAt = new Date();
-    refresh.expiresAt = new Date(Date.now() + grace_period);
-    refresh.replacedBy = newJti;
-    await refresh.save();
+    await RefreshModel.updateOne(
+      { _id: refresh._id },
+      { $set: { replacedBy: newJti } }
+    )
 
     setRefreshCookie(ctx, newRefresh);
     ctx.body = { token: accessToken, token_type: "Bearer", expires_in: 900 }
-
     ctx.status = 200;
   } catch (err: any) {
-    if (err.status) 
-    ctx.throw(401, "Invalid refresh")
+    if (err.status)
+      ctx.throw(401, "Invalid refresh")
   }
   await next();
 })
 
-authRouter.post("/api/auth/logout", async function(ctx: Context, next: Next) {
+authRouter.post("/api/auth/logout", async function (ctx: Context, next: Next) {
   const refreshToken = ctx.cookies.get("refresh_token");
   if (refreshToken) {
     try {
       const { jti } = jwt.decode(refreshToken) as any || {};
-      if (jti) await RefreshModel.updateOne({jti: jti}, {$set : {expiresAt: Date.now()}});
-    } catch {}
+      if (jti) await RefreshModel.updateOne({ jti: jti }, { $set: { expiresAt: Date.now() } });
+    } catch { }
   }
   ctx.cookies.set("refresh_token", "", {
-    httpOnly: true, 
+    httpOnly: true,
     maxAge: 0,
     path: "/auth/refresh"
   })
@@ -229,14 +235,14 @@ authRouter.get("/api/auth/verify", async function (ctx: Context, next: Next) {
   ctx.assert(/^Bearer\s+.+/.test(data), 401)
   const token = data.replace(/^Bearer\s+/, "");
   const payload = verifyAccessToken(token)
-  
+
   ctx.assert(payload, 401);
 
   // fix user
-  ctx.body = { 
-    _id: payload._id, 
-    username: payload.username, 
-    roles: payload.roles, 
+  ctx.body = {
+    _id: payload._id,
+    username: payload.username,
+    roles: payload.roles,
     liked_subject: payload.liked_subject,
     pfp_url: payload.pfp_url,
     email: payload.email,
