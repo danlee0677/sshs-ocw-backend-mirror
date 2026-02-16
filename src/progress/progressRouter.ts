@@ -1,6 +1,6 @@
 import Router from '@koa/router'
 import { Context, Next } from 'koa';
-import mongoose from 'mongoose';
+import mongoose, { FilterQuery } from 'mongoose';
 import passport from 'koa-passport'
 import { ProgressModel } from './ProgressModel';
 import z from 'zod';
@@ -12,9 +12,9 @@ progressRouter.get('/api/progress',
   async (ctx: Context, next: Next) => {
     if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
 
-    const { subjectId, count } = ctx.query
+    const { subjectId, skip, count } = ctx.query
 
-    let filter: any = {
+    let filter: FilterQuery<typeof ProgressModel> = {
       userId: ctx.state.user._id,
     };
 
@@ -23,8 +23,14 @@ progressRouter.get('/api/progress',
       filter.subjectId = subjectId
     }
 
-    let query = ProgressModel.find(filter);
-    
+    let query = ProgressModel.find(filter).sort({ viewedAt: -1 });
+
+    if (skip) {
+      const parsed = z.coerce.number().safeParse(skip);
+      ctx.assert(parsed.success, 400, "Start is not a valid number");
+      query.skip(parsed.data);
+    }
+
     if (count) {
       const parsed = z.coerce.number().safeParse(count);
       ctx.assert(parsed.success, 400, "Count is not a valid number");

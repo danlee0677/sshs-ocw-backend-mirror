@@ -7,4 +7,6 @@ const ProgressSchema = new Schema({
   viewedAt: { type: Date, required: true }
 })
 
+ProgressSchema.index({ userId: 1, viewedAt: -1 });
+
 export const ProgressModel = mongoose.model('lessonProgress', ProgressSchema);
