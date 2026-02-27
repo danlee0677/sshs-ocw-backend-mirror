@@ -39,16 +39,20 @@ lectureRouter.get('/api/subjects', async (ctx: Context, next: Next) => {
 })
 
 // get liked subjects by user
-lectureRouter.get('/api/subjects/liked', 
+lectureRouter.get('/api/subjects/liked/:userId', 
   passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
     if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
 
+    const { userId: pageUserId } = ctx.params;
+
+    ctx.assert(isValidObjectId(pageUserId), 400, "pageUser id is malformed");
     ctx.assert(isValidObjectId(ctx.state.user._id), 400, "User _id is malformed")
-    const user = await UserModel.findById(ctx.state.user._id).exec();
+    
+    const user = await UserModel.findById(pageUserId).exec();
 
     ctx.assert(user, 404, "Cannot find corresponding user")
-
+    
     const subjects = await SubjectModel.find({ _id: { $in: user.liked_subject }}).lean().exec();
 
     const filteredSubjects = subjects.map((sub) => ({ 

@@ -7,15 +7,17 @@ import z from 'zod';
 
 const progressRouter = new Router()
 
-progressRouter.get('/api/progress',
+progressRouter.get('/api/progress/:userId',
   passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
     if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
 
+    const { userId } = ctx.params
     const { subjectId, skip, count } = ctx.query
 
+    ctx.assert(mongoose.isValidObjectId(userId), 400, "Requested pageUserId is not a valid object id");
     let filter: FilterQuery<typeof ProgressModel> = {
-      userId: ctx.state.user._id,
+      userId,
     };
 
     if (subjectId) {

@@ -6,7 +6,6 @@ import { RefreshModel } from "../refresh/refreshModel";
 import { UserModel } from "../user/userModel";
 import { mintRefreshToken, signAccessToken, setRefreshCookie, verifyAccessToken } from "../refresh/refreshUtils";
 import { z } from 'zod'
-import { ContextUser } from "../types/user";
 
 const authRouter = new Router();
 
@@ -48,7 +47,7 @@ authRouter.get("/api/auth/login/google/callback", async (ctx: Context, next: Nex
     setRefreshCookie(ctx, refresh);
 
     ctx.status = 200;
-    ctx.redirect(`${process.env.FRONTEND_URL}/login/complete`)
+    ctx.redirect(`${process.env.FRONTEND_URL}/home`)
 
   })(ctx, next);
 });
@@ -70,7 +69,7 @@ authRouter.get("/api/auth/login/kakao", async function (ctx: Context, next: Next
 //       setRefreshCookie(ctx, refresh);
 //       ctx.status = 200;
 
-//       ctx.redirect(`${process.env.FRONTEND_URL}/login/complete`)
+//       ctx.redirect(`${process.env.FRONTEND_URL}/home`)
 //     } else {
 //       ctx.throw(401, "Invalid User")
 //     }
@@ -95,7 +94,7 @@ authRouter.get("/api/auth/login/naver", async function (ctx: Context, next: Next
 //       setRefreshCookie(ctx, refresh);
 
 //       ctx.status = 200;
-//       ctx.redirect(`${process.env.FRONTEND_URL}/login/complete`)
+//       ctx.redirect(`${process.env.FRONTEND_URL}/home`)
 //     } else {
 //       ctx.throw(401, "Invalid User")
 //     }
