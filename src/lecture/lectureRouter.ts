@@ -306,9 +306,10 @@ lectureRouter.get('/api/lessons/:lessonId',
 	ctx.assert(lesson, 404);
   
   const isStudentRegex: RegExp = /@sshs\.hs\.kr$/;
-
-  if (lesson.student_only && ((!ctx.state.user) || (!ctx.state.user.roles.includes('admin') && !isStudentRegex.test(ctx.state.user.email))))
-    ctx.throw(403, "Cannot view SSHS only material");
+  
+  if (lesson.student_only && ((!ctx.state.user) || (!ctx.state.user.roles.includes('admin') && !isStudentRegex.test(ctx.state.user.email)))) {
+    ctx.throw(401, "Cannot view SSHS only material");
+  }
 
   if (ctx.state.user) {
     const user = ctx.state.user
