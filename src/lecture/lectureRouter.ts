@@ -6,7 +6,7 @@ import { UserModel } from '../user/userModel';
 import { ModuleModel } from './module/moduleModel';
 import { subjectPatchSchema, subjectSchema } from './subject/subjectType';
 import { lessonPostSchema } from './lesson/lessonType';
-import mongoose, { isValidObjectId, Types, HydratedDocumentFromSchema } from 'mongoose';
+import mongoose, { isValidObjectId, Types, HydratedDocumentFromSchema, FilterQuery } from 'mongoose';
 import passport from 'koa-passport'
 import { z } from 'zod';
 import { ContextUser } from '../types/user';
@@ -14,7 +14,7 @@ import { ProgressModel } from '../progress/ProgressModel';
 
 const lectureRouter = new Router();
 
-const optionalAuth = (ctx: Context, next: Next) => {
+export const optionalAuth = (ctx: Context, next: Next) => {
   return passport.authenticate('jwt', { session: false }, 
     async (err: any, user: ContextUser | false, info: any, status: any) => {
     if (err)
@@ -25,6 +25,12 @@ const optionalAuth = (ctx: Context, next: Next) => {
 
     await next();
   })(ctx, next);
+}
+
+const isStudentRegex: RegExp = /@sshs\.hs\.kr$/;
+
+export const canViewStudentOnly = (user: ContextUser | undefined) => {
+  return user && (isStudentRegex.test(user.email) || user.roles.includes("admin"))
 }
 
 // list all subjects
@@ -75,7 +81,8 @@ lectureRouter.post('/api/subjects',
 		ctx.assert(ctx.state.user.roles.includes('admin'), 403)
 
 		const parsed = subjectSchema.safeParse(ctx.request.body);
-		ctx.assert(parsed.success, 400);
+
+    ctx.assert(parsed.success, 400, "No Tags Selected");
 
 		const subject = await SubjectModel.create({
 			title: parsed.data.title,
@@ -94,14 +101,21 @@ lectureRouter.post('/api/subjects',
 	})
 
 // get one subject -> get all lessons
-lectureRouter.get('/api/subjects/:subjectId', async (ctx: Context, next: Next) => {
+lectureRouter.get('/api/subjects/:subjectId', 
+  optionalAuth, async (ctx: Context, next: Next) => {
 	const subjectId = ctx.params.subjectId;
 
 	ctx.assert(mongoose.isValidObjectId(subjectId), 400);
 	const subject = await SubjectModel.findById(subjectId);
 	ctx.assert(subject, 404);
 
-	const lessons = await LessonModel.find({ subject: subjectId })
+  let filter: FilterQuery<typeof LessonModel> = {
+    subject: subjectId,
+  }
+
+  if (!canViewStudentOnly(ctx.state.user)) filter["student_only"] = false
+
+	const lessons = await LessonModel.find(filter)
 		.sort({ order: 1 })
 		.exec();
 	const filteredLessons = lessons.map((lesson) => {
@@ -304,10 +318,8 @@ lectureRouter.get('/api/lessons/:lessonId',
 	const lesson = await LessonModel.findOne({ _id: lessonId })
 	                                .populate({ path: 'createdBy', select: 'username'});
 	ctx.assert(lesson, 404);
-  
-  const isStudentRegex: RegExp = /@sshs\.hs\.kr$/;
-  
-  if (lesson.student_only && ((!ctx.state.user) || (!ctx.state.user.roles.includes('admin') && !isStudentRegex.test(ctx.state.user.email)))) {
+    
+  if (lesson.student_only && !canViewStudentOnly(ctx.state.user)) {
     ctx.throw(401, "Cannot view SSHS only material");
   }
 

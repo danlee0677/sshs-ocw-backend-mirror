@@ -5,10 +5,12 @@ import { SubjectModel } from "../lecture/subject/subjectModel";
 import { z } from 'zod'
 import { LessonModel } from "../lecture/lesson/lessonModel";
 import { FilterQuery } from "mongoose";
+import { canViewStudentOnly, optionalAuth } from "../lecture/lectureRouter";
 
 const searchRouter = new Router();
 
-searchRouter.post('/api/search', async function (ctx: Context, next: Next) {
+searchRouter.post('/api/search', 
+  optionalAuth, async function (ctx: Context, next: Next) {
   const parsed = z.object({
     subjectTitle: z.boolean(),
     subjectDescription: z.boolean(),
@@ -33,6 +35,8 @@ searchRouter.post('/api/search', async function (ctx: Context, next: Next) {
   let filter_lt: FilterQuery<typeof LessonModel> = {
     title: { $regex: keyword, $options: 'i' },
   }
+
+  if (!canViewStudentOnly(ctx.state.user)) filter_lt["student_only"] = false;
 
   if (parsed.data.tags.length > 0) {
     if (parsed.data.or) {
