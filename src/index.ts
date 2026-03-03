@@ -15,6 +15,9 @@ import userRouter from './user/userRouter';
 import searchRouter from './search/searchRouter';
 import cloudinaryRouter from './cloudinary/cloudinaryRouter';
 
+import dns from 'node:dns';
+dns.setServers(['8.8.8.8', '1.1.1.1']);
+
 const PORT = process.env.PORT || 8080
 const MONGODB_URI = process.env.MONGODB_URI || "";
 
