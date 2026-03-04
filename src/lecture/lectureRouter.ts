@@ -15,22 +15,22 @@ import { ProgressModel } from '../progress/ProgressModel';
 const lectureRouter = new Router();
 
 export const optionalAuth = (ctx: Context, next: Next) => {
-  return passport.authenticate('jwt', { session: false }, 
-    async (err: any, user: ContextUser | false, info: any, status: any) => {
-    if (err)
-      throw err;
-    
-    if (user) 
-      ctx.state.user = user;
+	return passport.authenticate('jwt', { session: false },
+		async (err: any, user: ContextUser | false, info: any, status: any) => {
+			if (err)
+				throw err;
 
-    await next();
-  })(ctx, next);
+			if (user)
+				ctx.state.user = user;
+
+			await next();
+		})(ctx, next);
 }
 
 const isStudentRegex: RegExp = /@sshs\.hs\.kr$/;
 
 export const canViewStudentOnly = (user: ContextUser | undefined) => {
-  return user && (isStudentRegex.test(user.email) || user.roles.includes("admin"))
+	return user && (isStudentRegex.test(user.email) || user.roles.includes("admin"))
 }
 
 // list all subjects
@@ -39,39 +39,39 @@ lectureRouter.get('/api/subjects', async (ctx: Context, next: Next) => {
 	const filteredSubjects = subjects.map((subject) => {
 		return { _id: subject._id, title: subject.title, createdAt: subject.createdAt }
 	})
-  
+
 	ctx.body = filteredSubjects;
 	ctx.status = 200;
 })
 
 // get liked subjects by user
-lectureRouter.get('/api/subjects/liked/:userId', 
-  passport.authenticate('jwt', { session: false }),
-  async (ctx: Context, next: Next) => {
-    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
+lectureRouter.get('/api/subjects/liked/:userId',
+	passport.authenticate('jwt', { session: false }),
+	async (ctx: Context, next: Next) => {
+		if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
 
-    const { userId: pageUserId } = ctx.params;
+		const { userId: pageUserId } = ctx.params;
 
-    ctx.assert(isValidObjectId(pageUserId), 400, "pageUser id is malformed");
-    ctx.assert(isValidObjectId(ctx.state.user._id), 400, "User _id is malformed")
-    
-    const user = await UserModel.findById(pageUserId).exec();
+		ctx.assert(isValidObjectId(pageUserId), 400, "pageUser id is malformed");
+		ctx.assert(isValidObjectId(ctx.state.user._id), 400, "User _id is malformed")
 
-    ctx.assert(user, 404, "Cannot find corresponding user")
-    
-    const subjects = await SubjectModel.find({ _id: { $in: user.liked_subject }}).lean().exec();
+		const user = await UserModel.findById(pageUserId).exec();
 
-    const filteredSubjects = subjects.map((sub) => ({ 
-      _id: sub._id, 
-      title: sub.title, 
-      description: sub.description,
-      image_url: sub.image_url,
-      tags: sub.tags,
-    }));
+		ctx.assert(user, 404, "Cannot find corresponding user")
 
-    ctx.status = 200;
-    ctx.body = filteredSubjects;
-  })
+		const subjects = await SubjectModel.find({ _id: { $in: user.liked_subject } }).lean().exec();
+
+		const filteredSubjects = subjects.map((sub) => ({
+			_id: sub._id,
+			title: sub.title,
+			description: sub.description,
+			image_url: sub.image_url,
+			tags: sub.tags,
+		}));
+
+		ctx.status = 200;
+		ctx.body = filteredSubjects;
+	})
 
 // create new subject
 lectureRouter.post('/api/subjects',
@@ -82,14 +82,15 @@ lectureRouter.post('/api/subjects',
 
 		const parsed = subjectSchema.safeParse(ctx.request.body);
 
-    ctx.assert(parsed.success, 400, "No Tags Selected");
+		ctx.assert(parsed.success, 400, "No Tags Selected");
 
 		const subject = await SubjectModel.create({
 			title: parsed.data.title,
 			image_url: parsed.data.image_url,
 			description: parsed.data.description,
 			likes: parsed.data.likes,
-      tags: parsed.data.tags,
+			tags: parsed.data.tags,
+			teacher_certified: false,
 		})
 
 		ctx.body = {
@@ -101,40 +102,41 @@ lectureRouter.post('/api/subjects',
 	})
 
 // get one subject -> get all lessons
-lectureRouter.get('/api/subjects/:subjectId', 
-  optionalAuth, async (ctx: Context, next: Next) => {
-	const subjectId = ctx.params.subjectId;
+lectureRouter.get('/api/subjects/:subjectId',
+	optionalAuth, async (ctx: Context, next: Next) => {
+		const subjectId = ctx.params.subjectId;
 
-	ctx.assert(mongoose.isValidObjectId(subjectId), 400);
-	const subject = await SubjectModel.findById(subjectId);
-	ctx.assert(subject, 404);
+		ctx.assert(mongoose.isValidObjectId(subjectId), 400);
+		const subject = await SubjectModel.findById(subjectId);
+		ctx.assert(subject, 404);
 
-  let filter: FilterQuery<typeof LessonModel> = {
-    subject: subjectId,
-  }
+		let filter: FilterQuery<typeof LessonModel> = {
+			subject: subjectId,
+		}
 
-  if (!canViewStudentOnly(ctx.state.user)) filter["student_only"] = false
+		if (!canViewStudentOnly(ctx.state.user)) filter["student_only"] = false
 
-	const lessons = await LessonModel.find(filter)
-		.sort({ order: 1 })
-		.exec();
-	const filteredLessons = lessons.map((lesson) => {
-		return { _id: lesson._id, title: lesson.title };
+		const lessons = await LessonModel.find(filter)
+			.sort({ order: 1 })
+			.exec();
+		const filteredLessons = lessons.map((lesson) => {
+			return { _id: lesson._id, title: lesson.title };
+		})
+
+		ctx.body = {
+			title: subject.title,
+			image_url: subject.image_url,
+			description: subject.description,
+			likes: subject.likes,
+			_id: subject._id,
+			tags: subject.tags,
+			teacher_certified: subject.teacher_certified,
+			contents: filteredLessons,
+		}
+
+		ctx.status = 200;
+		await next();
 	})
-
-	ctx.body = {
-		title: subject.title,
-		image_url: subject.image_url,
-		description: subject.description,
-		likes: subject.likes,
-		_id: subject._id,
-    tags: subject.tags,
-		contents: filteredLessons,
-	}
-
-	ctx.status = 200;
-	await next();
-})
 
 // delete subject
 lectureRouter.delete('/api/subjects/:subjectId',
@@ -193,7 +195,8 @@ lectureRouter.patch('/api/subjects/:subjectId',
 				subject.title = parsed.data.title;
 				subject.image_url = parsed.data.image_url
 				subject.description = parsed.data.description;
-        subject.tags = parsed.data.tags;
+				subject.tags = parsed.data.tags;
+				subject.teacher_certified = parsed.data.teacher_certified;
 				await subject.save({ session, validateModifiedOnly: true });
 
 				const newLessonIds = parsed.data.contents.map(x => x._id);
@@ -222,7 +225,7 @@ lectureRouter.patch('/api/subjects/:subjectId',
 			})
 
 			ctx.status = 200;
-		} catch {
+		} catch (err) {
 			ctx.status = 400;
 		} finally {
 			await session.endSession();
@@ -302,43 +305,43 @@ lectureRouter.post('/api/subjects/:subjectId/like',
 
 // update user history
 const updateUserHistory = async (user: ContextUser, lesson: HydratedDocumentFromSchema<typeof lessonSchema>) => {
-  await ProgressModel.findOneAndUpdate(
-    { userId: user._id, subjectId: lesson.subject, lessonId: lesson._id },
-    { $set: { viewedAt: new Date() }},
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  )
+	await ProgressModel.findOneAndUpdate(
+		{ userId: user._id, subjectId: lesson.subject, lessonId: lesson._id },
+		{ $set: { viewedAt: new Date() } },
+		{ upsert: true, new: true, setDefaultsOnInsert: true }
+	)
 }
 
 // get single lesson content
-lectureRouter.get('/api/lessons/:lessonId', 
-  optionalAuth, async (ctx: Context, next: Next) => {
-	const lessonId = ctx.params.lessonId;
-	ctx.assert(mongoose.isValidObjectId(lessonId), 400);
+lectureRouter.get('/api/lessons/:lessonId',
+	optionalAuth, async (ctx: Context, next: Next) => {
+		const lessonId = ctx.params.lessonId;
+		ctx.assert(mongoose.isValidObjectId(lessonId), 400);
 
-	const lesson = await LessonModel.findOne({ _id: lessonId })
-	                                .populate({ path: 'createdBy', select: 'username'});
-	ctx.assert(lesson, 404);
-    
-  if (lesson.student_only && !canViewStudentOnly(ctx.state.user)) {
-    ctx.throw(401, "Cannot view SSHS only material");
-  }
+		const lesson = await LessonModel.findOne({ _id: lessonId })
+			.populate({ path: 'createdBy', select: 'username' });
+		ctx.assert(lesson, 404);
 
-  if (ctx.state.user) {
-    const user = ctx.state.user
-    updateUserHistory(user, lesson).catch((err) => (console.error("Err on updating History: ", err)));
-  }
+		if (lesson.student_only && !canViewStudentOnly(ctx.state.user)) {
+			ctx.throw(401, "Cannot view SSHS only material");
+		}
 
-	const filteredLesson = {
-		title: lesson.title,
-		content: lesson.content,
-		createdBy: lesson.createdBy,
-		subject: lesson.subject,
-    student_only: lesson.student_only,
-		_id: lesson._id,
-	}
-	ctx.body = filteredLesson;
-	ctx.status = 200;
-})
+		if (ctx.state.user) {
+			const user = ctx.state.user
+			updateUserHistory(user, lesson).catch((err) => (console.error("Err on updating History: ", err)));
+		}
+
+		const filteredLesson = {
+			title: lesson.title,
+			content: lesson.content,
+			createdBy: lesson.createdBy,
+			subject: lesson.subject,
+			student_only: lesson.student_only,
+			_id: lesson._id,
+		}
+		ctx.body = filteredLesson;
+		ctx.status = 200;
+	})
 
 // delete lesson
 lectureRouter.delete('/api/lessons/:lessonId',
@@ -398,7 +401,7 @@ lectureRouter.post('/api/lessons',
 			subject: subject._id,
 			content: parsed.data.content,
 			order: lessons.length,
-      student_only: parsed.data.student_only,
+			student_only: parsed.data.student_only,
 		})
 
 		ctx.status = 201;
@@ -417,7 +420,7 @@ lectureRouter.patch('/api/lessons/:lessonId',
 		const tempSchema = z.object({
 			title: z.string(),
 			content: z.string(),
-      student_only: z.boolean(),
+			student_only: z.boolean(),
 		})
 
 		const parsed = tempSchema.safeParse(ctx.request.body)
@@ -431,13 +434,13 @@ lectureRouter.patch('/api/lessons/:lessonId',
 
 				lesson.title = parsed.data.title;
 				lesson.content = parsed.data.content;
-        lesson.student_only = parsed.data.student_only;
+				lesson.student_only = parsed.data.student_only;
 				await lesson.save({ session, validateModifiedOnly: true });
 			})
 			ctx.status = 200
-		} catch(err) {
+		} catch (err) {
 			console.log("profile", err)
-			throw err;		
+			throw err;
 		} finally {
 			session.endSession()
 			await next();

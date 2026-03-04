@@ -13,6 +13,7 @@ export const subjectPatchSchema = z.object({
   image_url: z.string(),
   description: z.string(),
   tags: z.array(z.string()),
+  teacher_certified: z.boolean(),
   contents: z.array(z.object({
     _id: z.string(),
     title: z.string(),

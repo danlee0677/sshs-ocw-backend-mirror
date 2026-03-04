@@ -15,7 +15,7 @@ userRouter.get('/api/user/:userId',
     const user = await UserModel.findById(userId)
     ctx.assert(user, 401);
 
-    if (ctx.state.user && ctx.state.user._id === userId) {
+    if (ctx.state.user && ctx.state.user._id.toString() === userId) {
       ctx.body = {
         username: user.username,
         pfp_url: user.pfp_url,
