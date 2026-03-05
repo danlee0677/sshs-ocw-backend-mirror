@@ -11,26 +11,21 @@ import passport from 'koa-passport'
 import { z } from 'zod';
 import { ContextUser } from '../types/user';
 import { ProgressModel } from '../progress/ProgressModel';
+import { canEditSubject } from '../permission/permissionRouter';
+import { PermissionModel } from '../permission/permissionModel';
 
 const lectureRouter = new Router();
 
-export const optionalAuth = (ctx: Context, next: Next) => {
-	return passport.authenticate('jwt', { session: false },
-		async (err: any, user: ContextUser | false, info: any, status: any) => {
-			if (err)
-				throw err;
-
-			if (user)
-				ctx.state.user = user;
-
-			await next();
-		})(ctx, next);
-}
-
 const isStudentRegex: RegExp = /@sshs\.hs\.kr$/;
 
-export const canViewStudentOnly = (user: ContextUser | undefined) => {
-	return user && (isStudentRegex.test(user.email) || user.roles.includes("admin"))
+export const canViewStudentOnly = async (user: ContextUser, subjectId: string | Types.ObjectId): Promise<boolean> => {
+	if (user.roles.includes('admin') || isStudentRegex.test(user.email)) return true
+	const perm = await PermissionModel.findOne({
+		subjectId: subjectId,
+		userId: user._id,
+		role: { $in: ['owner', 'editor'] },
+	}).lean()
+	return !!perm
 }
 
 // list all subjects
@@ -78,7 +73,8 @@ lectureRouter.post('/api/subjects',
 	passport.authenticate('jwt', { session: false }),
 	async (ctx: Context, next: Next) => {
 		if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
-		ctx.assert(ctx.state.user.roles.includes('admin'), 403)
+		const canCreate = ctx.state.user.roles.includes('admin') || ctx.state.user.roles.includes('creator')
+		ctx.assert(canCreate, 403)
 
 		const parsed = subjectSchema.safeParse(ctx.request.body);
 
@@ -88,10 +84,18 @@ lectureRouter.post('/api/subjects',
 			title: parsed.data.title,
 			image_url: parsed.data.image_url,
 			description: parsed.data.description,
-			likes: parsed.data.likes,
+			likes: 0,
 			tags: parsed.data.tags,
 			teacher_certified: false,
 		})
+
+		if (!ctx.state.user.roles.includes('admin')) {
+			await PermissionModel.create({
+				userId: ctx.state.user._id,
+				subjectId: subject._id,
+				role: 'owner',
+			})
+		}
 
 		ctx.body = {
 			_id: subject._id,
@@ -103,7 +107,9 @@ lectureRouter.post('/api/subjects',
 
 // get one subject -> get all lessons
 lectureRouter.get('/api/subjects/:subjectId',
-	optionalAuth, async (ctx: Context, next: Next) => {
+	passport.authenticate('jwt', { session: false }),
+	async (ctx: Context, next: Next) => {
+		if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)");
 		const subjectId = ctx.params.subjectId;
 
 		ctx.assert(mongoose.isValidObjectId(subjectId), 400);
@@ -114,7 +120,7 @@ lectureRouter.get('/api/subjects/:subjectId',
 			subject: subjectId,
 		}
 
-		if (!canViewStudentOnly(ctx.state.user)) filter["student_only"] = false
+		if (!await canViewStudentOnly(ctx.state.user, subjectId)) filter["student_only"] = false
 
 		const lessons = await LessonModel.find(filter)
 			.sort({ order: 1 })
@@ -143,12 +149,10 @@ lectureRouter.delete('/api/subjects/:subjectId',
 	passport.authenticate('jwt', { session: false }),
 	async (ctx: Context, next: Next) => {
 		if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
-		ctx.assert(ctx.state.user.roles.includes('admin'), 403)
-
 		const subjectId = ctx.params.subjectId;
-		// todo: auth
 
 		ctx.assert(mongoose.isValidObjectId(subjectId), 400);
+		ctx.assert(await canEditSubject(ctx.state.user, subjectId), 403);
 
 		const session = await mongoose.startSession();
 		try {
@@ -162,6 +166,7 @@ lectureRouter.delete('/api/subjects/:subjectId',
 
 				await LessonModel.deleteMany({ module: { $in: moduleIds } }).session(session);
 				await ModuleModel.deleteMany({ subject: subject._id }).session(session);
+				await PermissionModel.deleteMany({ subjectId: subject._id }).session(session);
 				await SubjectModel.deleteOne({ _id: subject._id }).session(session);
 			})
 
@@ -176,10 +181,10 @@ lectureRouter.patch('/api/subjects/:subjectId',
 	passport.authenticate('jwt', { session: false }),
 	async (ctx: Context, next: Next) => {
 		if (!ctx.state.user) throw new Error("assertUser: missing User(RequireAuth not mounted?)");
-		ctx.assert(ctx.state.user.roles.includes('admin'), 403)
 
 		const subjectId = ctx.params.subjectId;
 		ctx.assert(mongoose.isValidObjectId(subjectId), 400);
+		ctx.assert(await canEditSubject(ctx.state.user, subjectId), 403);
 
 		const parsed = subjectPatchSchema.safeParse(ctx.request.body);
 
@@ -196,7 +201,8 @@ lectureRouter.patch('/api/subjects/:subjectId',
 				subject.image_url = parsed.data.image_url
 				subject.description = parsed.data.description;
 				subject.tags = parsed.data.tags;
-				subject.teacher_certified = parsed.data.teacher_certified;
+				if (ctx.state.user && ctx.state.user.roles.includes('admin'))
+					subject.teacher_certified = parsed.data.teacher_certified;
 				await subject.save({ session, validateModifiedOnly: true });
 
 				const newLessonIds = parsed.data.contents.map(x => x._id);
@@ -314,7 +320,9 @@ const updateUserHistory = async (user: ContextUser, lesson: HydratedDocumentFrom
 
 // get single lesson content
 lectureRouter.get('/api/lessons/:lessonId',
-	optionalAuth, async (ctx: Context, next: Next) => {
+	passport.authenticate('jwt', { session: false }),
+	async (ctx: Context, next: Next) => {
+		if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)");
 		const lessonId = ctx.params.lessonId;
 		ctx.assert(mongoose.isValidObjectId(lessonId), 400);
 
@@ -322,14 +330,11 @@ lectureRouter.get('/api/lessons/:lessonId',
 			.populate({ path: 'createdBy', select: 'username' });
 		ctx.assert(lesson, 404);
 
-		if (lesson.student_only && !canViewStudentOnly(ctx.state.user)) {
+		if (lesson.student_only && !await canViewStudentOnly(ctx.state.user, lesson.subject)) {
 			ctx.throw(401, "Cannot view SSHS only material");
 		}
 
-		if (ctx.state.user) {
-			const user = ctx.state.user
-			updateUserHistory(user, lesson).catch((err) => (console.error("Err on updating History: ", err)));
-		}
+		updateUserHistory(ctx.state.user, lesson).catch((err) => (console.error("Err on updating History: ", err)));
 
 		const filteredLesson = {
 			title: lesson.title,
@@ -348,13 +353,15 @@ lectureRouter.delete('/api/lessons/:lessonId',
 	passport.authenticate("jwt", { session: false }),
 	async (ctx: Context, next: Next) => {
 		if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
-		ctx.assert(ctx.state.user.roles.includes('admin'), 403);
 
-		const id = ctx.params.lessonId;
+		const lessonId = ctx.params.lessonId;
+		ctx.assert(mongoose.isValidObjectId(lessonId), 400);
 
-		ctx.assert(mongoose.isValidObjectId(id), 400);
+		const lesson = await LessonModel.findById(lessonId).lean().exec();
+		ctx.assert(lesson, 404);
+		ctx.assert(await canEditSubject(ctx.state.user, lesson.subject), 403);
 
-		const deleted = await LessonModel.findByIdAndDelete(id).exec();
+		const deleted = await LessonModel.findByIdAndDelete(lessonId).exec();
 
 		ctx.assert(deleted, 404);
 
@@ -380,13 +387,14 @@ lectureRouter.post('/api/lessons',
 	passport.authenticate('jwt', { session: false }),
 	async (ctx: Context, next: Next) => {
 		if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
-		ctx.assert(ctx.state.user.roles.includes('admin'), 403);
 
 		const parsed = lessonPostSchema.safeParse(ctx.request.body);
 
 		ctx.assert(parsed.success, 400);
 		ctx.assert(mongoose.isValidObjectId(parsed.data.createdBy), 400);
 		ctx.assert(mongoose.isValidObjectId(parsed.data.subject), 400);
+
+		ctx.assert(await canEditSubject(ctx.state.user, parsed.data.subject), 403);
 
 		const user = await UserModel.findOne({ _id: parsed.data.createdBy }).exec();
 		ctx.assert(user, 404);
@@ -412,7 +420,6 @@ lectureRouter.patch('/api/lessons/:lessonId',
 	passport.authenticate('jwt', { session: false }),
 	async (ctx: Context, next: Next) => {
 		if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)"); // this should never happen
-		ctx.assert(ctx.state.user.roles.includes('admin'), 403);
 
 		const lessonId = ctx.params.lessonId;
 		ctx.assert(mongoose.isValidObjectId(lessonId), 400)
@@ -425,6 +432,10 @@ lectureRouter.patch('/api/lessons/:lessonId',
 
 		const parsed = tempSchema.safeParse(ctx.request.body)
 		ctx.assert(parsed.success, 400);
+
+		const lessonForAuth = await LessonModel.findById(lessonId).lean().exec();
+		ctx.assert(lessonForAuth, 404);
+		ctx.assert(await canEditSubject(ctx.state.user, lessonForAuth.subject), 403);
 
 		const session = await mongoose.startSession()
 		try {

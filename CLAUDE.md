@@ -44,8 +44,9 @@ See README.md for the full `.env` template. Key variables:
 | `authRouter` | `/api/auth` | OAuth login, JWT refresh, logout, verify |
 | `progressRouter` | `/api/progress` | Tracks which lessons a user has viewed |
 | `userRouter` | `/api/user` | User profile fetch/delete |
-| `searchRouter` | `/api/search` | Regex search across subjects/lessons |
+| `searchRouter` | `/api/search` | Search across subjects/lessons (requires auth) |
 | `cloudinaryRouter` | `/api/image` | Signed Cloudinary upload URL (admin only) |
+| `permissionRouter` | `/api/permission`, `/api/user/:userId/roles` | Per-subject permission management and global role grants |
 
 ### Authentication flow
 
@@ -59,18 +60,33 @@ Naver and Kakao strategies exist in the codebase but their callback routes are c
 
 ### Authorization
 
-- `passport.authenticate('jwt', { session: false })` — requires a valid access token.
-- `optionalAuth` (exported from `lectureRouter`) — attaches user if token is present but doesn't reject unauthenticated requests.
-- Role `admin` — required for all write operations (create/edit/delete subjects, lessons, upload images).
-- `canViewStudentOnly(user)` — returns true if user email matches `@sshs.hs.kr` or role is `admin`. Gates `student_only` lessons from public access.
+**Global roles** (stored in `User.roles[]`):
+- `admin` — full access to everything; the only role that can set `teacher_certified` on subjects and manage global roles.
+- `creator` — can create new subjects. Automatically receives an `owner` Permission record on subjects they create.
+
+**Per-subject permissions** (stored in `PermissionModel`):
+- `owner` — granted to non-admin subject creators. Can edit/delete the subject and grant/revoke `editor` permissions for other users.
+- `editor` — can edit and create/delete lessons within a subject. Granted by an owner or admin.
+
+**Key helper functions:**
+- `canEditSubject(user, subjectId)` (in `permissionRouter`) — returns `true` if user is `admin` OR has an `owner`/`editor` Permission record for the subject. Used to gate all write operations on subjects and lessons.
+- `canViewStudentOnly(user, subjectId)` (in `lectureRouter`) — returns `true` if user email matches `@sshs.hs.kr`, role is `admin`, or user has an `owner`/`editor` Permission record for the subject. Gates `student_only` lessons and filters lesson lists.
+
+**Permission API endpoints:**
+- `GET /api/permission/check/:subjectId` — returns `{ canEdit, role }` for the current user.
+- `GET /api/permission/subject/:subjectId` — lists all permission records for a subject (admin only).
+- `POST /api/permission` — grants `editor` role to a user for a subject (admin or subject owner only; body: `{ userId, subjectId, role: 'editor' }`).
+- `DELETE /api/permission/:permissionId` — revokes an `editor` record (admin or subject owner only; cannot remove `owner` records this way).
+- `PATCH /api/user/:userId/roles` — grants or revokes the `creator` global role (admin only; body: `{ grant?: ['creator'], revoke?: ['creator'] }`).
 
 ### Data models
 
 - **User** — `username`, `pfp_url`, `roles[]`, `liked_subject[]`, `email`
 - **Provider** — links OAuth provider + provider user ID to a User `_id`
 - **RefreshModel** — stores issued refresh JWTs with `jti`, `usedAt`, `replacedBy` for rotation/reuse detection
-- **Subject** — `title`, `description`, `image_url`, `tags[]`, `likes`
+- **Subject** — `title`, `description`, `image_url`, `tags[]`, `likes`, `teacher_certified` (boolean, admin-only write)
 - **Lesson** — belongs to a Subject, has `order`, `content`, `student_only`, `createdBy`
+- **Permission** — `{ userId, subjectId, role: 'owner' | 'editor' }`, unique index on `(userId, subjectId)`
 - **Module / Exercise** — models exist but are not yet used by any router
 - **Progress** — records `{ userId, subjectId, lessonId, viewedAt }` upserted on lesson view
 

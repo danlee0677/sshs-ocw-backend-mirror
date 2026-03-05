@@ -14,6 +14,7 @@ import progressRouter from './progress/progressRouter';
 import userRouter from './user/userRouter';
 import searchRouter from './search/searchRouter';
 import cloudinaryRouter from './cloudinary/cloudinaryRouter';
+import permissionRouter from './permission/permissionRouter';
 
 import dns from 'node:dns';
 dns.setServers(['8.8.8.8', '1.1.1.1']);
@@ -36,8 +37,19 @@ const app = new Koa()
 
 app.proxy = true;
 
+const FRONTEND_URL = process.env.FRONTEND_URL
+
 app.use(cors({
-  origin: (ctx) => ctx.request.header.origin || "*",
+  origin: (ctx) => {
+    if (process.env.NODE_ENV !== 'production') {
+      // Dev: reflect any origin so localhost:3000 → localhost:3001 works without restriction
+      return ctx.request.header.origin || ''
+    }
+    // Production: only allow the configured frontend origin
+    const requestOrigin = ctx.request.header.origin
+    if (FRONTEND_URL && requestOrigin === FRONTEND_URL) return FRONTEND_URL
+    return ''
+  },
   credentials: true,
 }));
 
@@ -60,6 +72,7 @@ app.use(progressRouter.routes())
 app.use(userRouter.routes())
 app.use(searchRouter.routes())
 app.use(cloudinaryRouter.routes());
+app.use(permissionRouter.routes());
 
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`)

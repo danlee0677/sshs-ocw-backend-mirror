@@ -5,12 +5,17 @@ import { SubjectModel } from "../lecture/subject/subjectModel";
 import { z } from 'zod'
 import { LessonModel } from "../lecture/lesson/lessonModel";
 import { FilterQuery } from "mongoose";
-import { canViewStudentOnly, optionalAuth } from "../lecture/lectureRouter";
+import passport from 'koa-passport';
 
 const searchRouter = new Router();
 
-searchRouter.post('/api/search', 
-  optionalAuth, async function (ctx: Context, next: Next) {
+const isStudentOrAdmin = (user: { roles: string[], email: string }): boolean =>
+  user.roles.includes('admin') || /@sshs\.hs\.kr$/.test(user.email);
+
+searchRouter.post('/api/search',
+  passport.authenticate('jwt', { session: false }),
+  async function (ctx: Context, next: Next) {
+    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)");
   const parsed = z.object({
     subjectTitle: z.boolean(),
     subjectDescription: z.boolean(),
@@ -36,7 +41,7 @@ searchRouter.post('/api/search',
     title: { $regex: keyword, $options: 'i' },
   }
 
-  if (!canViewStudentOnly(ctx.state.user)) filter_lt["student_only"] = false;
+  if (!isStudentOrAdmin(ctx.state.user)) filter_lt["student_only"] = false;
 
   if (parsed.data.tags.length > 0) {
     if (parsed.data.or) {
@@ -50,11 +55,11 @@ searchRouter.post('/api/search',
 
   const [st, sc, lt] = await Promise.all([
     parsed.data.subjectTitle ?
-      SubjectModel.find(filter_st).select({ _id: 1, title: 1 })
+      SubjectModel.find(filter_st).select({ _id: 1, title: 1, teacher_certified: 1 })
       : Promise.resolve([]),
 
     parsed.data.subjectDescription ?
-      SubjectModel.find(filter_sc).select({ _id: 1, description: 1 }).lean()
+      SubjectModel.find(filter_sc).select({ _id: 1, description: 1, teacher_certified: 1 }).lean()
       : Promise.resolve([]),
 
     parsed.data.lessonTitle ?
