@@ -331,7 +331,7 @@ lectureRouter.get('/api/lessons/:lessonId',
 		ctx.assert(lesson, 404);
 
 		if (lesson.student_only && !await canViewStudentOnly(ctx.state.user, lesson.subject)) {
-			ctx.throw(401, "Cannot view SSHS only material");
+			ctx.throw(431, "Cannot view SSHS only material");
 		}
 
 		updateUserHistory(ctx.state.user, lesson).catch((err) => (console.error("Err on updating History: ", err)));
