@@ -8,7 +8,7 @@
   "main": "src/index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "pm2 start dist/index.js",
+    "start": "pm2 start dist/index.js --name \"sshs-ocw-backend\"",
     "build": "tsc"
   },
   "dependencies": {
