@@ -19,8 +19,7 @@
     "@types/koa-passport": "^6.0.3",
     "@types/passport-google-oauth20": "^2.0.16",
     "@types/passport-jwt": "^4.0.1",
-    "@types/passport-kakao": "^1.0.3",
-    "@types/passport-naver": "^1.0.4",
+    "@types/passport-oauth2": "^1.8.0",
     "cloudinary": "^2.9.0",
     "dotenv": "^17.2.1",
     "koa": "^3.0.1",
@@ -29,8 +28,6 @@
     "mongoose": "^8.17.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",
-    "passport-kakao": "^1.0.1",
-    "passport-naver": "^1.0.6",
     "passport-oauth2": "^1.8.0",
     "typescript": "^5.9.2",
     "zod": "^4.0.14"

@@ -1,35 +1,52 @@
-import { Strategy as NaverStrategy, Profile } from "passport-naver";
-import passport from 'koa-passport'
+import { NaverStrategy, NaverProfile } from "./naver-passport";
 import { UserModel } from "../user/userModel";
 import { ProviderModel } from "./providerModel";
+import jwt, { type Secret } from 'jsonwebtoken';
+import z from "zod";
 
 export var naverStrategy = new NaverStrategy({
   clientID: process.env.NAVER_CLIENT_ID || "",
   clientSecret: process.env.NAVER_CLIENT_SECRET || "",
   callbackURL : `${process.env.BASE_API_URL || ""}/api/auth/login/naver/callback`,
-  
-}, async function (accessToken: String, refreshToken: String, profile: Profile, cb: any) {
-  const provider = await ProviderModel.findOne({ provider: "naver", providerUserId: profile.id });
-  if (provider) {
-    const user = await UserModel.findById(provider.userId)
-    if (user) { 
-      return await cb(null, {
-        username: user.username,
-        _id: user._id,
-        roles: user.roles,
-        pfp_url: user.pfp_url, 
-        liked_subject: user.liked_subject,
-      })
-    } else {
-      await ProviderModel.findByIdAndDelete(provider._id);
-    }
-  }
+}, async function (req, accessToken: String, refreshToken: String, profile: NaverProfile, cb: any) {
   try {
+    const provider = await ProviderModel.findOne({ provider: "naver", providerUserId: profile.id });
+    
+    if (provider) {
+      const user = await UserModel.findById(provider.userId)
+      if (user) { 
+        return await cb(null, {
+          username: user.username,
+          _id: user._id,
+          roles: user.roles,
+          pfp_url: user.pfp_url, 
+          liked_subject: user.liked_subject,
+          email: user.email,
+        })
+      } else {
+        await ProviderModel.findByIdAndDelete(provider._id);
+      }
+    }
+
+    const state = req.query?.state as string;
+    if (!state) return cb(new Error("State token missing for new user registration"))
+
+    const decoded = jwt.verify(state, (process.env.STATE_SECRET ?? "") satisfies Secret, { algorithms: ["HS256"] })
+    const parsed = z.object({ username: z.string() }).safeParse(decoded)
+    if (!parsed.success) return cb(new Error("Failed to parse state token"));
+
+    if (parsed.data.username.length === 0)
+      return cb(new Error("NoUsername"));
+    
+    const usernameExists = await UserModel.exists({ username: parsed.data.username });
+    if (usernameExists)
+      return cb(new Error("DuplicateUsername"));
+
     const new_user = await UserModel.create({
-      name: "default-user",
+      username: parsed.data.username,
       roles: ['user'],
       liked_subject: [],
-      email: "no_email",
+      email: profile.emails ? profile.emails[0].value : "no_email",
     })
 
     await ProviderModel.create({
@@ -47,7 +64,7 @@ export var naverStrategy = new NaverStrategy({
       email: new_user.email,
     });
   } catch (err) {
+    console.log(err);
     return cb(err);
   }
-  
 })

@@ -23,7 +23,7 @@ function parseUsername(ctx: Context): string {
 }
 
 authRouter.get("/api/auth/login/google", async function (ctx: Context, next: Next) {
-  const state = parseUsername(ctx)
+  const state = parseUsername(ctx);
 
   return passport.authenticate(
     'google', { state: state, scope: ['profile', 'email'], session: false }
@@ -54,52 +54,65 @@ authRouter.get("/api/auth/login/google/callback", async (ctx: Context, next: Nex
 
 
 authRouter.get("/api/auth/login/kakao", async function (ctx: Context, next: Next) {
-  const state = parseUsername(ctx)
+  const state = parseUsername(ctx);
 
-  return passport.authenticate('kakao', { state: state, session: false })(ctx, next);
+  return passport.authenticate('kakao', 
+    { state: state, session: false }
+  )(ctx, next);
 });
 
-// authRouter.get("/api/auth/login/kakao/callback",
-//   passport.authenticate('kakao', { session: false }),
-//   async function (ctx: Context, next: Next) {
-//     if (ctx.state.user) {
-//       const user = await decodeUsername(ctx.state.user, ctx);
+authRouter.get("/api/auth/login/kakao/callback", async (ctx: Context, next: Next) => {
+  return passport.authenticate('kakao', { session: false }, async (err, user, info, status) => {
+    if (err) {
+      const errorMessage = encodeURIComponent(err.message);
+      ctx.redirect(`${process.env.FRONTEND_URL}?error=${errorMessage}`)
+      return;
+    }
 
-//       const { token: refresh } = await mintRefreshToken(user._id);
-//       setRefreshCookie(ctx, refresh);
-//       ctx.status = 200;
+    if (!user) {
+      ctx.redirect(`${process.env.FRONTEND_URL}?error=AuthenticationFailed`)
+      return;
+    }
 
-//       ctx.redirect(`${process.env.FRONTEND_URL}/home`)
-//     } else {
-//       ctx.throw(401, "Invalid User")
-//     }
+    const { token: refresh } = await mintRefreshToken(user._id);
+    setRefreshCookie(ctx, refresh);
 
-//     await next()
-//   })
+    ctx.status = 200;
+    ctx.redirect(`${process.env.FRONTEND_URL}/home`)
+
+  })(ctx, next);
+});
 
 
 authRouter.get("/api/auth/login/naver", async function (ctx: Context, next: Next) {
-  const state = parseUsername(ctx)
+  const state = parseUsername(ctx);
 
-  return passport.authenticate('naver', { state: state, session: false })(ctx, next);
+  return passport.authenticate('naver', 
+    { state: state, session: false }
+  )(ctx, next);
 })
 
-// authRouter.get("/api/auth/login/naver/callback",
-//   passport.authenticate('naver', { session: false }),
-//   async function (ctx: Context, next: Next) {
-//     if (ctx.state.user) {
-//       const user = await decodeUsername(ctx.state.user, ctx);
+authRouter.get("/api/auth/login/naver/callback", async (ctx: Context, next: Next) => {
+  return passport.authenticate('naver', { session: false }, async (err, user, info, status) => {
+    if (err) {
+      const errorMessage = encodeURIComponent(err.message);
+      ctx.redirect(`${process.env.FRONTEND_URL}?error=${errorMessage}`)
+      return;
+    }
 
-//       const { token: refresh } = await mintRefreshToken(user._id);
-//       setRefreshCookie(ctx, refresh);
+    if (!user) {
+      ctx.redirect(`${process.env.FRONTEND_URL}?error=AuthenticationFailed`)
+      return;
+    }
 
-//       ctx.status = 200;
-//       ctx.redirect(`${process.env.FRONTEND_URL}/home`)
-//     } else {
-//       ctx.throw(401, "Invalid User")
-//     }
+    const { token: refresh } = await mintRefreshToken(user._id);
+    setRefreshCookie(ctx, refresh);
 
-//   })
+    ctx.status = 200;
+    ctx.redirect(`${process.env.FRONTEND_URL}/home`)
+
+  })(ctx, next);
+});
 
 
 authRouter.post("/api/auth/refresh", async function (ctx: Context, next: Next) {
