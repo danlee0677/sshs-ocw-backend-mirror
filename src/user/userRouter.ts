@@ -1,10 +1,16 @@
 import Router from "@koa/router";
 import { Context, Next } from "koa";
 import passport from 'koa-passport'
-import { UserModel } from "./userModel";
-import mongoose from "mongoose";
+import { UserModel, userSchema } from "./userModel";
+import mongoose, { InferSchemaType } from "mongoose";
+import z from "zod";
 
 const userRouter = new Router()
+
+const userPatchSchema = z.object({
+  description: z.string().optional(),
+  pfp_url: z.string().optional(),
+})
 
 userRouter.get('/api/user/:userId',
   passport.authenticate('jwt', { session: false }),
@@ -30,6 +36,30 @@ userRouter.get('/api/user/:userId',
       }
     }
 
+    await next();
+  }
+)
+
+userRouter.patch('/api/user',
+  passport.authenticate('jwt', { session: false }),
+  async function (ctx: Context, next: Next) {
+    if (!ctx.state.user) throw new Error("User not mounted: RequireAuth Error?");
+    const parsed = userPatchSchema.safeParse(ctx.request.body);
+
+    ctx.assert(parsed.success, 400, "Failed to parse data");
+    const query: mongoose.UpdateQuery<InferSchemaType<typeof userSchema>> = {};
+    
+    if (parsed.data.description !== undefined) query["description"] = parsed.data.description;
+    if (parsed.data.pfp_url !== undefined) query["pfp_url"] = parsed.data.pfp_url
+
+    const updated = await UserModel.findByIdAndUpdate(ctx.state.user._id, query, { new: true });
+
+    ctx.assert(updated, 404);
+    ctx.status = 200;
+    ctx.body = {
+      pfp_url: updated.pfp_url,
+      description: updated.description,
+    }
     await next();
   }
 )

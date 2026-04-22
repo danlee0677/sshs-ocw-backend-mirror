@@ -6,6 +6,7 @@ export const userSchema = new Schema({
   roles: { type: [String], required: true, default: [] },
   liked_subject: { type: [String], required: true, default: []},
   email: { type: String, required: true, default: "" },
+  description: { type: String, default: "" },
 })
 
 export const UserModel = mongoose.model('User', userSchema);

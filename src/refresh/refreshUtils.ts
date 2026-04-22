@@ -19,6 +19,7 @@ export async function signAccessToken(user: ContextUser) {
       liked_subject: user.liked_subject,
       pfp_url: user.pfp_url, 
       email: user.email,
+      description: user.description
     },
     (process.env.JWT_SECRET as Secret),
     {

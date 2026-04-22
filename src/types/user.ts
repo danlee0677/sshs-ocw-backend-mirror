@@ -19,6 +19,7 @@ export const accessTokenUserSchema = z.object({
   roles: z.array(z.string()),
   liked_subject: z.array(z.string()),
   email: z.string(),
+  description: z.string(),
 })
 
 export type AccessTokenUser = z.infer<typeof accessTokenUserSchema>
@@ -30,4 +31,5 @@ export interface ContextUser {
   roles: Array<string>,
   liked_subject: Array<string>,
   email: string,
+  description: string,
 }
