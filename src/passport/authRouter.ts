@@ -232,7 +232,7 @@ authRouter.get("/api/auth/verify", async function (ctx: Context, next: Next) {
     liked_subject: payload.liked_subject,
     pfp_url: payload.pfp_url,
     email: payload.email,
-    description: payload.description
+    description: payload.description,
   }
   ctx.status = 200
 

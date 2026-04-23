@@ -7,11 +7,6 @@ import z from "zod";
 
 const userRouter = new Router()
 
-const userPatchSchema = z.object({
-  description: z.string().optional(),
-  pfp_url: z.string().optional(),
-})
-
 userRouter.get('/api/user/:userId',
   passport.authenticate('jwt', { session: false }),
   async function (ctx: Context, next: Next) {
@@ -26,13 +21,15 @@ userRouter.get('/api/user/:userId',
         username: user.username,
         pfp_url: user.pfp_url,
         roles: user.roles,
-        liked_subject: user.liked_subject
+        liked_subject: user.liked_subject,
+        description: user.description,
       }
     }
     else {
       ctx.body = {
         username: user.username,
         pfp_url: user.pfp_url,
+        description: user.description,
       }
     }
 
@@ -40,13 +37,27 @@ userRouter.get('/api/user/:userId',
   }
 )
 
+const userPatchSchema = z.object({
+  description: z.string()
+    .max(100, { message: "DescriptionLengthLimit" })
+    .refine(val => !/https?:\/\//i.test(val), { message: "DescriptionContainsUrl" })
+    .optional(),
+  pfp_url: z.string()
+    .refine(val => { try { return new URL(val).protocol === "https:"; } catch { return false; } }, { message: "PfpUrlInvalid" })
+    .optional(),
+})
+
 userRouter.patch('/api/user',
   passport.authenticate('jwt', { session: false }),
   async function (ctx: Context, next: Next) {
     if (!ctx.state.user) throw new Error("User not mounted: RequireAuth Error?");
     const parsed = userPatchSchema.safeParse(ctx.request.body);
 
-    ctx.assert(parsed.success, 400, "Failed to parse data");
+    if (!parsed.success) {
+      ctx.status = 400;
+      ctx.body = { errors: parsed.error.issues.map(i => i.message) };
+      return;
+    }
     const query: mongoose.UpdateQuery<InferSchemaType<typeof userSchema>> = {};
     
     if (parsed.data.description !== undefined) query["description"] = parsed.data.description;
