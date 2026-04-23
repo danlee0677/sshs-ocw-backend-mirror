@@ -18,7 +18,7 @@ cloudinaryRouter.get('/api/image/sign-upload',
   async (ctx: Context, next: Next) => {
     if (!ctx.state.user) throw new Error("Failed to get user, passport failure");
     
-    // add api limit to normal users
+    // todo: add api limit to normal users
 
     const timestamp = Math.round((new Date).getTime() / 1000);
 
