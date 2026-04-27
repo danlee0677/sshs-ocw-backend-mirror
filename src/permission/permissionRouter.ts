@@ -178,6 +178,7 @@ permissionRouter.patch('/api/permission/:subjectId',
   passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
     if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)")
+    const user = ctx.state.user
 
     const { subjectId } = ctx.params
     ctx.assert(isValidObjectId(subjectId), 400, "subjectId is not a valid object id")
@@ -188,29 +189,35 @@ permissionRouter.patch('/api/permission/:subjectId',
     const { to } = parsed.data
     ctx.assert(isValidObjectId(to), 400, "to is not a valid object id")
 
-    const isAdmin = ctx.state.user.roles.includes('admin')
-    const callerOwnerPerm = !isAdmin
-      ? await PermissionModel.findOne({ userId: ctx.state.user._id, subjectId, role: 'owner' }).lean()
-      : null
-    ctx.assert(isAdmin || callerOwnerPerm, 403)
-
-    const currentOwnerPerm = await PermissionModel.findOne({ subjectId, role: 'owner' }).lean()
-    ctx.assert(currentOwnerPerm, 404, "NoOwner")
-
-    const targetPerm = await PermissionModel.findOne({ userId: to, subjectId }).lean()
-    ctx.assert(targetPerm, 404, "NoPermissionRecord")
-
-    ctx.assert(
-      !(currentOwnerPerm.userId as Types.ObjectId).equals(targetPerm.userId as Types.ObjectId),
-      400,
-      "AlreadyOwner"
-    )
+    const isAdmin = user.roles.includes('admin')
+    let previousOwnerId!: Types.ObjectId
 
     const session = await mongoose.startSession()
     try {
       await session.withTransaction(async () => {
-        await PermissionModel.updateOne({ _id: currentOwnerPerm._id }, { $set: { role: 'editor' } }, { session })
+        // Auth check and current-owner fetch are unified into one atomic read inside the transaction.
+        // Non-admin path: querying by caller's userId ensures caller is still owner at transaction time,
+        // preventing a concurrent transfer from slipping past the 403 gate.
+        const currentOwnerPerm = !isAdmin
+          ? await PermissionModel.findOne({ userId: user._id, subjectId, role: 'owner' }, null, { session }).lean()
+          : await PermissionModel.findOne({ subjectId, role: 'owner' }, null, { session }).lean()
+
+        if (!isAdmin) ctx.assert(currentOwnerPerm, 403)
+        else ctx.assert(currentOwnerPerm, 404, "NoOwner")
+
+        const targetPerm = await PermissionModel.findOne({ userId: to, subjectId }, null, { session }).lean()
+        ctx.assert(targetPerm, 404, "NoPermissionRecord")
+
+        ctx.assert(
+          !(currentOwnerPerm!.userId as Types.ObjectId).equals(targetPerm.userId as Types.ObjectId),
+          400,
+          "AlreadyOwner"
+        )
+
+        await PermissionModel.updateOne({ _id: currentOwnerPerm!._id }, { $set: { role: 'editor' } }, { session })
         await PermissionModel.updateOne({ _id: targetPerm._id }, { $set: { role: 'owner' } }, { session })
+
+        previousOwnerId = currentOwnerPerm!.userId as Types.ObjectId
       })
     } finally {
       await session.endSession()
@@ -218,7 +225,7 @@ permissionRouter.patch('/api/permission/:subjectId',
 
     ctx.status = 200
     ctx.body = {
-      previousOwner: { userId: currentOwnerPerm.userId, role: 'editor' },
+      previousOwner: { userId: previousOwnerId, role: 'editor' },
       newOwner: { userId: to, role: 'owner' },
     }
     await next()
