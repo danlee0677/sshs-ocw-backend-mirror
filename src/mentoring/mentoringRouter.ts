@@ -15,9 +15,38 @@ const mentoringSchema = z.object({
   description: z.string(),
   tags: z.array(z.string()),
   content: z.string(),
-  files: z.array(z.string()),
+  files: z.array(z.object({
+    name: z.string(),
+    url: z.string(),
+  })),
   createdBy: z.array(z.string()),
+  registration: z.string(),
 })
+
+mentoringRouter.get('/api/mentoring', 
+  passport.authenticate('jwt', { session: false }),
+  async (ctx: Context, next: Next) => {
+    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)");
+    
+    const mentoringList = await MentoringModel.find().lean();
+
+    const filteredMentoring = mentoringList.map((m) => ({
+      _id: m._id,
+      title: m.title,
+      description: m.description,
+      image_url: m.image_url,
+      tags: m.tags,
+      createdBy: m.createdBy,
+      createdAt: m.createdAt,
+      updatedAt: m.updatedAt,
+      registration: m.registration,
+    }))
+
+    ctx.status = 200;
+
+    ctx.body = filteredMentoring;
+  }
+)
 
 mentoringRouter.get('/api/mentoring/:mentoringId',
   passport.authenticate('jwt', { session: false }),
@@ -40,6 +69,9 @@ mentoringRouter.get('/api/mentoring/:mentoringId',
       files: mentoring.files,
       tags: mentoring.tags,
       createdBy: mentoring.createdBy,
+      createdAt: mentoring.createdAt,
+      updatedAt: mentoring.updatedAt,
+      registration: mentoring.registration,
     };
   }
 )
@@ -68,7 +100,8 @@ mentoringRouter.post('/api/mentoring',
           tags: parsed.data.tags,
           content: parsed.data.content,
           files: parsed.data.files,
-          author: parsed.data.createdBy,
+          createdBy: parsed.data.createdBy,
+          registration: parsed.data.registration,
         }], { session });
         await PermissionModel.create([{
           userId: user._id,
@@ -103,16 +136,17 @@ mentoringRouter.patch('/api/mentoring/:mentoringId',
       { $set: {
         title: parsed.data.title,
         description: parsed.data.description,
-        author: parsed.data.createdBy,
+        createdBy: parsed.data.createdBy,
         image_url: parsed.data.image_url,
         content: parsed.data.content,
         files: parsed.data.files,
         tags: parsed.data.tags,
+        registration: parsed.data.registration,
       } },
       { new: true }
     )
 
-    ctx.assert(updated, 400, "Cannot update");
+    ctx.assert(updated, 404, "Cannot update");
 
     ctx.status = 200;
   }

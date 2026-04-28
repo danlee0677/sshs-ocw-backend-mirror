@@ -6,8 +6,12 @@ const mentoringSchema = new Schema({
   description: { type: String, required: true },
   tags: { type: [String], required: true, default: [] },
   content: { type: String, required: true },
-  files: { type: [String], required: true, default: [] },
+  files: { type: [{
+    name: { type: String, required: true, default: '계획서' },
+    url: { type: String, required: true, default: "" },
+  }], required: true, default: [] },
   createdBy: { type: [String], required: true, default: [] },
+  registration: { type: String, required: true, default: "" },
 }, { timestamps: true })
 
 export const MentoringModel = mongoose.model('Mentoring', mentoringSchema)
