@@ -52,7 +52,7 @@ permissionRouter.get('/api/permission/check/:subjectId',
   }
 )
 
-// List all permissions for a subject (admin only)
+// List all permissions for a subject (admin or canEdit)
 permissionRouter.get('/api/permission/subject/:subjectId',
   passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
@@ -61,9 +61,7 @@ permissionRouter.get('/api/permission/subject/:subjectId',
     const { subjectId } = ctx.params
     ctx.assert(mongoose.isValidObjectId(subjectId), 400, "subjectId is not a valid object id")
 
-    const isAdmin = ctx.state.user.roles.includes('admin')
-    const isOwner = !isAdmin && await PermissionModel.findOne({ userId: ctx.state.user._id, subjectId, role: 'owner' }).lean()
-    ctx.assert(isAdmin || isOwner, 403)
+    ctx.assert(await canEditSubject(ctx.state.user, subjectId), 403)
 
     const permissions = await PermissionModel.find({ subjectId })
       .populate({ path: 'userId', select: '_id username pfp_url' })
