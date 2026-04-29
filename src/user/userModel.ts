@@ -5,6 +5,7 @@ export const userSchema = new Schema({
   pfp_url: { type: String, required: true, default: "https://res.cloudinary.com/dxnbcmh48/image/upload/v1764310213/alfap9qgoadm1ytsyugm.png"},
   roles: { type: [String], required: true, default: [] },
   liked_subject: { type: [String], required: true, default: []},
+  achievement: {type: [Number], required: true, default: []},
   email: { type: String, required: true, default: "" },
   description: { type: String, default: "" },
 })

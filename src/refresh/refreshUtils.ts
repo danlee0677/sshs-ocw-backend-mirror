@@ -18,6 +18,7 @@ export async function signAccessToken(user: ContextUser) {
       roles: user.roles, 
       liked_subject: user.liked_subject,
       pfp_url: user.pfp_url, 
+      achievement: user.achievement,
       email: user.email,
       description: user.description
     },

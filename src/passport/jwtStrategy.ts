@@ -18,6 +18,7 @@ export var jwtStrategy = new JwtStrategy(opts, async function(payload: any, cb) 
       roles: payload.roles,
       pfp_url: payload.pfp_url,
       liked_subject: payload.liked_subject,
+      achievement: payload.achievement,
       recent_viewed: payload.recent_viewed,
       email: payload.email,
       description: payload.description,

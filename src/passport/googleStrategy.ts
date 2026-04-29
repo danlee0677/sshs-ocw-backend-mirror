@@ -23,6 +23,7 @@ export var googleStrategy = new GoogleStrategy({
           _id: user._id,
           pfp_url: user.pfp_url,
           liked_subject: user.liked_subject,
+          achievement: user.achievement,
           email: user.email,
           description: user.description,
         });
@@ -50,6 +51,7 @@ export var googleStrategy = new GoogleStrategy({
       username: parsed.data.username,
       roles: ['user'],
       liked_subject: [],
+      achievement: [],
       email: profile.emails ? profile.emails[0].value : "no_email",
       description: "",
     })
@@ -65,6 +67,7 @@ export var googleStrategy = new GoogleStrategy({
       _id: new_user._id,
       pfp_url: new_user.pfp_url,
       liked_subject: new_user.liked_subject,
+      achievement: new_user.achievement,
       email: new_user.email,
       description: new_user.description,
     });

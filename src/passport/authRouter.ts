@@ -231,6 +231,7 @@ authRouter.get("/api/auth/verify", async function (ctx: Context, next: Next) {
     roles: payload.roles,
     liked_subject: payload.liked_subject,
     pfp_url: payload.pfp_url,
+    achievement: payload.achievement,
     email: payload.email,
     description: payload.description,
   }
