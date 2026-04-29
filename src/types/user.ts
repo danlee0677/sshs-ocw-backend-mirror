@@ -17,7 +17,7 @@ export const accessTokenUserSchema = z.object({
   username: z.string(),
   pfp_url: z.string(),
   roles: z.array(z.string()),
-  achievement: z.array(z.int()),
+  achievement: z.array(z.number()),
   liked_subject: z.array(z.string()),
   email: z.string(),
   description: z.string(),

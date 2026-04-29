@@ -11,7 +11,7 @@ import passport from 'koa-passport'
 import { z } from 'zod';
 import { ContextUser } from '../types/user';
 import { ProgressModel } from '../progress/ProgressModel';
-import { streakModel } from '../streak/streakModel';
+import { StreakModel } from '../streak/streakModel';
 import { logicalDate, dayOfYear } from '../streak/streakUtils';
 import { canEditSubject } from '../permission/permissionRouter';
 import { PermissionModel } from '../permission/permissionModel';
@@ -322,7 +322,7 @@ const updateUserHistory = async (user: ContextUser, lesson: HydratedDocumentFrom
 	// non-blocking: record the logical day's lesson count (KST 06:00 boundary)
 	const logical = logicalDate(now)
 	const doy = dayOfYear(logical)
-	streakModel.findOneAndUpdate(
+	StreakModel.findOneAndUpdate(
 		{ userId: user._id, year: logical.getUTCFullYear() },
 		{ $inc: { [`days.${doy}`]: 1 } },
 		{ upsert: true }

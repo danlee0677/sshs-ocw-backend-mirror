@@ -4,8 +4,6 @@ import jwt, { Algorithm, Secret, SignOptions } from 'jsonwebtoken'
 import { RefreshModel } from "./refreshModel";
 import { Context } from "koa";
 import mongoose from "mongoose";
-import { LessonModel } from "../lecture/lesson/lessonModel";
-import { SubjectModel } from "../lecture/subject/subjectModel";
 
 const REFRESH_EXPIRE_SEC = 18 * 24 * 60 * 60;
 
