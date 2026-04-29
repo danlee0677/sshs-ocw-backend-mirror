@@ -15,8 +15,10 @@ import userRouter from './user/userRouter';
 import searchRouter from './search/searchRouter';
 import cloudinaryRouter from './cloudinary/cloudinaryRouter';
 import permissionRouter from './permission/permissionRouter';
+import streakRouter from './streak/streakRouter';
 
 import dns from 'node:dns';
+import mentoringRouter from './mentoring/mentoringRouter';
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const PORT = process.env.PORT || 8080
@@ -73,6 +75,8 @@ app.use(userRouter.routes())
 app.use(searchRouter.routes())
 app.use(cloudinaryRouter.routes());
 app.use(permissionRouter.routes());
+app.use(streakRouter.routes());
+app.use(mentoringRouter.routes());
 
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`)

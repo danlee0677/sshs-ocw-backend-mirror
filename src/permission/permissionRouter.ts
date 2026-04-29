@@ -1,7 +1,7 @@
 import Router from '@koa/router'
 import { Context, Next } from 'koa'
 import passport from 'koa-passport'
-import mongoose, { Types } from 'mongoose'
+import mongoose, { isValidObjectId, Types } from 'mongoose'
 import { z } from 'zod'
 import { PermissionModel } from './permissionModel'
 import { SubjectModel } from '../lecture/subject/subjectModel'
@@ -52,15 +52,16 @@ permissionRouter.get('/api/permission/check/:subjectId',
   }
 )
 
-// List all permissions for a subject (admin only)
+// List all permissions for a subject (admin or canEdit)
 permissionRouter.get('/api/permission/subject/:subjectId',
   passport.authenticate('jwt', { session: false }),
   async (ctx: Context, next: Next) => {
     if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)")
-    ctx.assert(ctx.state.user.roles.includes('admin'), 403)
-
+    
     const { subjectId } = ctx.params
     ctx.assert(mongoose.isValidObjectId(subjectId), 400, "subjectId is not a valid object id")
+
+    ctx.assert(await canEditSubject(ctx.state.user, subjectId), 403)
 
     const permissions = await PermissionModel.find({ subjectId })
       .populate({ path: 'userId', select: '_id username pfp_url' })
@@ -89,9 +90,9 @@ permissionRouter.get('/api/permission/subject/:subjectId',
 
 // Grant permission (admin or subject owner)
 const grantSchema = z.object({
-  userId:    z.string(),
+  userId: z.string(),
   subjectId: z.string(),
-  role:      z.enum(['editor']),
+  role: z.enum(['editor']),
 })
 
 permissionRouter.post('/api/permission',
@@ -167,9 +168,71 @@ permissionRouter.delete('/api/permission/:permissionId',
   }
 )
 
+const permissionPatchSchema = z.object({
+  to: z.string(),
+})
+
+permissionRouter.patch('/api/permission/:subjectId',
+  passport.authenticate('jwt', { session: false }),
+  async (ctx: Context, next: Next) => {
+    if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)")
+    const user = ctx.state.user
+
+    const { subjectId } = ctx.params
+    ctx.assert(isValidObjectId(subjectId), 400, "subjectId is not a valid object id")
+
+    const parsed = permissionPatchSchema.safeParse(ctx.request.body)
+    ctx.assert(parsed.success, 400, "Invalid request body")
+
+    const { to } = parsed.data
+    ctx.assert(isValidObjectId(to), 400, "to is not a valid object id")
+
+    const isAdmin = user.roles.includes('admin')
+    let previousOwnerId!: Types.ObjectId
+
+    const session = await mongoose.startSession()
+    try {
+      await session.withTransaction(async () => {
+        // Auth check and current-owner fetch are unified into one atomic read inside the transaction.
+        // Non-admin path: querying by caller's userId ensures caller is still owner at transaction time,
+        // preventing a concurrent transfer from slipping past the 403 gate.
+        const currentOwnerPerm = !isAdmin
+          ? await PermissionModel.findOne({ userId: user._id, subjectId, role: 'owner' }, null, { session }).lean()
+          : await PermissionModel.findOne({ subjectId, role: 'owner' }, null, { session }).lean()
+
+        if (!isAdmin) ctx.assert(currentOwnerPerm, 403)
+        else ctx.assert(currentOwnerPerm, 404, "NoOwner")
+
+        const targetPerm = await PermissionModel.findOne({ userId: to, subjectId }, null, { session }).lean()
+        ctx.assert(targetPerm, 404, "NoPermissionRecord")
+
+        ctx.assert(
+          !(currentOwnerPerm!.userId as Types.ObjectId).equals(targetPerm.userId as Types.ObjectId),
+          400,
+          "AlreadyOwner"
+        )
+
+        await PermissionModel.updateOne({ _id: currentOwnerPerm!._id }, { $set: { role: 'editor' } }, { session })
+        await PermissionModel.updateOne({ _id: targetPerm._id }, { $set: { role: 'owner' } }, { session })
+
+        previousOwnerId = currentOwnerPerm!.userId as Types.ObjectId
+      })
+    } finally {
+      await session.endSession()
+    }
+
+    ctx.status = 200
+    ctx.body = {
+      previousOwner: { userId: previousOwnerId, role: 'editor' },
+      newOwner: { userId: to, role: 'owner' },
+    }
+    await next()
+  }
+)
+
 // Grant or revoke global roles (admin only; only 'creator' is grantable)
 const userRolesSchema = z.object({
-  grant:  z.array(z.enum(['creator'])).optional(),
+  grant: z.array(z.enum(['creator'])).optional(),
   revoke: z.array(z.enum(['creator'])).optional(),
 })
 
@@ -191,7 +254,7 @@ permissionRouter.patch('/api/user/:userId/roles',
     const user = await UserModel.findById(userId)
     ctx.assert(user, 404, "User not found")
 
-    if (grant?.length)  await UserModel.updateOne({ _id: userId }, { $addToSet: { roles: { $each: grant } } })
+    if (grant?.length) await UserModel.updateOne({ _id: userId }, { $addToSet: { roles: { $each: grant } } })
     if (revoke?.length) await UserModel.updateOne({ _id: userId }, { $pull: { roles: { $in: revoke } } })
 
     const updated = await UserModel.findById(userId).select('roles').lean()

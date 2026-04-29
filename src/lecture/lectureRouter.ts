@@ -11,6 +11,8 @@ import passport from 'koa-passport'
 import { z } from 'zod';
 import { ContextUser } from '../types/user';
 import { ProgressModel } from '../progress/ProgressModel';
+import { streakModel } from '../streak/streakModel';
+import { logicalDate, dayOfYear } from '../streak/streakUtils';
 import { canEditSubject } from '../permission/permissionRouter';
 import { PermissionModel } from '../permission/permissionModel';
 
@@ -311,11 +313,20 @@ lectureRouter.post('/api/subjects/:subjectId/like',
 
 // update user history
 const updateUserHistory = async (user: ContextUser, lesson: HydratedDocumentFromSchema<typeof lessonSchema>) => {
+	const now = new Date()
 	await ProgressModel.findOneAndUpdate(
 		{ userId: user._id, subjectId: lesson.subject, lessonId: lesson._id },
-		{ $set: { viewedAt: new Date() } },
+		{ $set: { viewedAt: now } },
 		{ upsert: true, new: true, setDefaultsOnInsert: true }
 	)
+	// non-blocking: record the logical day's lesson count (KST 06:00 boundary)
+	const logical = logicalDate(now)
+	const doy = dayOfYear(logical)
+	streakModel.findOneAndUpdate(
+		{ userId: user._id, year: logical.getUTCFullYear() },
+		{ $inc: { [`days.${doy}`]: 1 } },
+		{ upsert: true }
+	).catch((err) => console.error('Err on updating UserActivity:', { userId: user._id, year: logical.getUTCFullYear(), doy, err }))
 }
 
 // get single lesson content
