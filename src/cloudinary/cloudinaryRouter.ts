@@ -27,7 +27,7 @@ const apiLimit = ratelimit({
   },
   max: 10,
   disableHeader: false,
-  whitelist: (ctx) => {
+  whitelist: (ctx: Context) => {
     return !!ctx.state.user && ctx.state.user.roles.includes('admin')
   }
 })

@@ -45,7 +45,7 @@ See README.md for the full `.env` template. Key variables:
 | `progressRouter` | `/api/progress` | Tracks which lessons a user has viewed |
 | `userRouter` | `/api/user` | User profile fetch/delete |
 | `searchRouter` | `/api/search` | Search across subjects/lessons (requires auth) |
-| `cloudinaryRouter` | `/api/image` | Signed Cloudinary upload URL (admin only) |
+| `cloudinaryRouter` | `/api/image` | Signed Cloudinary upload URL (any authenticated user; admins bypass the per-user rate limit, others are throttled) |
 | `permissionRouter` | `/api/permission`, `/api/user/:userId/roles` | Per-subject permission management and global role grants |
 
 ### Authentication flow
