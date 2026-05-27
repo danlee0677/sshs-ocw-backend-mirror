@@ -146,7 +146,7 @@ authRouter.post("/api/auth/refresh", async function (ctx: Context, next: Next) {
 
       if (usedToken && usedToken.usedAt) {
         if (new Date().getTime() - usedToken.usedAt.getTime() < grace_period) {
-          let replacementJti: string | undefined = usedToken.replacedBy;
+          let replacementJti: string | null | undefined = usedToken.replacedBy;
           let attempts = 0;
 
           while (!replacementJti && attempts < 5) {
