@@ -44,6 +44,7 @@ progressRouter.get('/api/progress/:userId/recent-subjects',
       }},
       { $project: {
           _id: 0,
+          userId: userId,
           subject: { $arrayElemAt: ["$subject", 0] },
           lesson:  { $arrayElemAt: ["$lesson",  0] },
           viewedAt: 1
