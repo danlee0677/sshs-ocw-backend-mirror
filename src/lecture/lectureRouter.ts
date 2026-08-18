@@ -118,11 +118,13 @@ lectureRouter.get('/api/subjects/:subjectId',
 		const subject = await SubjectModel.findById(subjectId);
 		ctx.assert(subject, 404);
 
+		const canView = await canViewStudentOnly(ctx.state.user, subjectId);
+
 		let filter: FilterQuery<typeof LessonModel> = {
 			subject: subjectId,
 		}
 
-		if (!await canViewStudentOnly(ctx.state.user, subjectId)) filter["student_only"] = false
+		if (!canView) filter["student_only"] = false
 
 		const lessons = await LessonModel.find(filter)
 			.sort({ order: 1 })
@@ -130,6 +132,14 @@ lectureRouter.get('/api/subjects/:subjectId',
 		const filteredLessons = lessons.map((lesson) => {
 			return { _id: lesson._id, title: lesson.title };
 		})
+
+		// How many lessons this request is NOT allowed to see. The client cannot
+		// derive this: `contents` is filtered silently, so an empty list is
+		// indistinguishable from a subject with no lessons. Only the count is
+		// exposed — never the hidden lessons' titles or ids.
+		const hidden_lesson_count = canView
+			? 0
+			: await LessonModel.countDocuments({ subject: subjectId, student_only: true });
 
 		ctx.body = {
 			title: subject.title,
@@ -140,6 +150,7 @@ lectureRouter.get('/api/subjects/:subjectId',
 			tags: subject.tags,
 			teacher_certified: subject.teacher_certified,
 			contents: filteredLessons,
+			hidden_lesson_count,
 		}
 
 		ctx.status = 200;
