@@ -28,7 +28,7 @@ mentoringRouter.get('/api/mentoring',
   async (ctx: Context, next: Next) => {
     if (!ctx.state.user) throw new Error("assertUser: missing user (requireAuth not mounted?)");
     
-    const mentoringList = await MentoringModel.find().lean();
+    const mentoringList = await MentoringModel.find().sort({ createdAt: -1 }).lean();
 
     const filteredMentoring = mentoringList.map((m) => ({
       _id: m._id,
