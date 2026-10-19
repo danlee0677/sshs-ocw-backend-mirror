@@ -12,6 +12,21 @@ const authRouter = new Router();
 
 const STATE_SECRET = process.env.STATE_SECRET as string
 
+// Errors about the chosen username belong to the signup screen (landing "/").
+// Everything else is a login failure and goes to /login. Only these known codes
+// reach the URL; raw err.message (jwt / mongo / provider text) never does.
+const SIGNUP_ERRORS = ["NoUsername", "DuplicateUsername", "InvalidUsername"]
+
+function redirectLoginError(ctx: Context, err: any) {
+  const code = typeof err?.message === "string" ? err.message : ""
+  if (SIGNUP_ERRORS.includes(code)) {
+    ctx.redirect(`${process.env.FRONTEND_URL}?error=${code}`)
+    return
+  }
+  console.log("OAuth login failed:", err)
+  ctx.redirect(`${process.env.FRONTEND_URL}/login?error=AuthenticationFailed`)
+}
+
 // Returns the signed state token, or null if a (non-empty) username breaks the rules.
 // An empty username is a plain login for an existing account and stays allowed;
 // the strategies turn it into "NoUsername" only if the account does not exist.
@@ -48,13 +63,12 @@ authRouter.get("/api/auth/login/google", async function (ctx: Context, next: Nex
 authRouter.get("/api/auth/login/google/callback", async (ctx: Context, next: Next) => {
   return passport.authenticate('google', { session: false }, async (err, user, info, status) => {
     if (err) {
-      const errorMessage = encodeURIComponent(err.message);
-      ctx.redirect(`${process.env.FRONTEND_URL}?error=${errorMessage}`)
+      redirectLoginError(ctx, err);
       return;
     }
 
     if (!user) {
-      ctx.redirect(`${process.env.FRONTEND_URL}?error=AuthenticationFailed`)
+      redirectLoginError(ctx, null);
       return;
     }
 
@@ -83,13 +97,12 @@ authRouter.get("/api/auth/login/kakao", async function (ctx: Context, next: Next
 authRouter.get("/api/auth/login/kakao/callback", async (ctx: Context, next: Next) => {
   return passport.authenticate('kakao', { session: false }, async (err, user, info, status) => {
     if (err) {
-      const errorMessage = encodeURIComponent(err.message);
-      ctx.redirect(`${process.env.FRONTEND_URL}?error=${errorMessage}`)
+      redirectLoginError(ctx, err);
       return;
     }
 
     if (!user) {
-      ctx.redirect(`${process.env.FRONTEND_URL}?error=AuthenticationFailed`)
+      redirectLoginError(ctx, null);
       return;
     }
 
@@ -118,13 +131,12 @@ authRouter.get("/api/auth/login/naver", async function (ctx: Context, next: Next
 authRouter.get("/api/auth/login/naver/callback", async (ctx: Context, next: Next) => {
   return passport.authenticate('naver', { session: false }, async (err, user, info, status) => {
     if (err) {
-      const errorMessage = encodeURIComponent(err.message);
-      ctx.redirect(`${process.env.FRONTEND_URL}?error=${errorMessage}`)
+      redirectLoginError(ctx, err);
       return;
     }
 
     if (!user) {
-      ctx.redirect(`${process.env.FRONTEND_URL}?error=AuthenticationFailed`)
+      redirectLoginError(ctx, null);
       return;
     }
 
