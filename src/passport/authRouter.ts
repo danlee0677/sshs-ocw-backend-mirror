@@ -246,10 +246,13 @@ authRouter.post("/api/auth/logout",
   async function (ctx: Context, next: Next) {
     if (!ctx.state.user) throw new Error("user not found: passport not mounted?")
     await RefreshModel.deleteMany({ userId: ctx.state.user._id }).exec();
-    ctx.cookies.set("refresh_token", "", {
+    // Must match setRefreshCookie (path "/", secure, sameSite) or the browser
+    // treats it as a different cookie and keeps the real one. null = expire it.
+    ctx.cookies.set("refresh_token", null, {
       httpOnly: true,
-      maxAge: 0,
-      path: "/auth/refresh"
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      path: "/",
     })
     ctx.status = 204;
     await next()
