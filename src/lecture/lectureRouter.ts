@@ -418,7 +418,10 @@ lectureRouter.post('/api/lessons',
 
 		ctx.assert(await canEditSubject(ctx.state.user, parsed.data.subject), 403);
 
-		const user = await UserModel.findOne({ _id: parsed.data.createdBy }).exec();
+		// The author is whoever is logged in. body.createdBy is still required by the
+		// schema (old clients send it) but its value is ignored, so an editor cannot
+		// credit someone else.
+		const user = await UserModel.findOne({ _id: ctx.state.user._id }).exec();
 		ctx.assert(user, 404);
 		const subject = await SubjectModel.findOne({ _id: parsed.data.subject }).exec();
 		ctx.assert(subject, 404);
