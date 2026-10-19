@@ -244,7 +244,9 @@ lectureRouter.patch('/api/subjects/:subjectId',
 			})
 
 			ctx.status = 200;
-		} catch (err) {
+		} catch (err: any) {
+			// keep 404/400 from ctx.assert inside the transaction; anything else stays 400
+			if (err?.status) throw err;
 			ctx.status = 400;
 		} finally {
 			await session.endSession();
