@@ -5,6 +5,7 @@ import mongoose, { isValidObjectId, Types } from 'mongoose'
 import { z } from 'zod'
 import { PermissionModel } from './permissionModel'
 import { SubjectModel } from '../lecture/subject/subjectModel'
+import { MentoringModel } from '../mentoring/mentoringModel'
 import { UserModel } from '../user/userModel'
 import { ContextUser } from '../types/user'
 
@@ -89,6 +90,8 @@ permissionRouter.get('/api/permission/subject/:subjectId',
 )
 
 // Grant permission (admin or subject owner)
+// `subjectId` is the id of the permission target: a Subject OR a Mentoring.
+// Mentoring reuses the subject permission system (see mentoringRouter).
 const grantSchema = z.object({
   userId: z.string(),
   subjectId: z.string(),
@@ -114,13 +117,14 @@ permissionRouter.post('/api/permission',
 
     ctx.assert(mongoose.isValidObjectId(userId), 400, "userId is not a valid object id")
 
-    const [user, subject, existing] = await Promise.all([
+    const [user, subject, mentoring, existing] = await Promise.all([
       UserModel.findById(userId).lean(),
-      SubjectModel.findById(subjectId).lean(),
+      SubjectModel.exists({ _id: subjectId }),
+      MentoringModel.exists({ _id: subjectId }),
       PermissionModel.findOne({ userId, subjectId }).lean(),
     ])
     ctx.assert(user, 404, "User not found")
-    ctx.assert(subject, 404, "Subject not found")
+    ctx.assert(subject || mentoring, 404, "Subject not found")
     ctx.assert(!existing || existing.role !== 'owner', 409, "Cannot demote an owner to editor")
 
     let permission
