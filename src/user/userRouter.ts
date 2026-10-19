@@ -22,6 +22,7 @@ userRouter.get('/api/user/:userId',
         pfp_url: user.pfp_url,
         roles: user.roles,
         liked_subject: user.liked_subject,
+        achievement: user.achievement,
         description: user.description,
       }
     }
@@ -29,6 +30,7 @@ userRouter.get('/api/user/:userId',
       ctx.body = {
         username: user.username,
         pfp_url: user.pfp_url,
+        achievement: user.achievement,
         description: user.description,
       }
     }
