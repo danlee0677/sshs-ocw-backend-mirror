@@ -231,8 +231,12 @@ authRouter.post("/api/auth/refresh", async function (ctx: Context, next: Next) {
     ctx.body = { token: accessToken, token_type: "Bearer", expires_in: 900 }
     ctx.status = 200;
   } catch (err: any) {
-    if (err.status)
+    // HttpErrors from ctx.assert/throw above, and jwt.verify failures
+    // (expired / bad signature) are all "invalid refresh". Previously the jwt
+    // errors were swallowed here and the request fell through to a 404.
+    if (err?.status || err instanceof jwt.JsonWebTokenError)
       ctx.throw(401, "Invalid refresh")
+    throw err
   }
   await next();
 })
