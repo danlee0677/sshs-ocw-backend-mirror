@@ -12,10 +12,10 @@ userRouter.get('/api/user/:userId',
   passport.authenticate('jwt', { session: false }),
   async function (ctx: Context, next: Next) {
     const userId = ctx.params.userId;
-    ctx.assert(mongoose.isValidObjectId(userId), 401);
+    ctx.assert(mongoose.isValidObjectId(userId), 400);
 
     const user = await UserModel.findById(userId)
-    ctx.assert(user, 401);
+    ctx.assert(user, 404);
 
     if (ctx.state.user && ctx.state.user._id.toString() === userId) {
       ctx.body = {
