@@ -6,24 +6,39 @@ import { RefreshModel } from "../refresh/refreshModel";
 import { UserModel } from "../user/userModel";
 import { mintRefreshToken, signAccessToken, setRefreshCookie, verifyAccessToken } from "../refresh/refreshUtils";
 import { z } from 'zod'
+import { usernameSchema } from "../user/userType";
 
 const authRouter = new Router();
 
 const STATE_SECRET = process.env.STATE_SECRET as string
 
-function parseUsername(ctx: Context): string {
+// Returns the signed state token, or null if a (non-empty) username breaks the rules.
+// An empty username is a plain login for an existing account and stays allowed;
+// the strategies turn it into "NoUsername" only if the account does not exist.
+function parseUsername(ctx: Context): string | null {
   const parsed = z.object({
     username: z.string(),
   }).safeParse(ctx.query)
   ctx.assert(parsed.success, 400)
 
-  const token = jwt.sign({ username: parsed.data.username }, STATE_SECRET, { algorithm: "HS256", expiresIn: "5m" });
+  let username = ""
+  if (parsed.data.username !== "") {
+    const usernameParsed = usernameSchema.safeParse(parsed.data.username)
+    if (!usernameParsed.success) return null
+    username = usernameParsed.data
+  }
+
+  const token = jwt.sign({ username: username }, STATE_SECRET, { algorithm: "HS256", expiresIn: "5m" });
 
   return token
 }
 
 authRouter.get("/api/auth/login/google", async function (ctx: Context, next: Next) {
   const state = parseUsername(ctx);
+  if (state === null) {
+    ctx.redirect(`${process.env.FRONTEND_URL}?error=InvalidUsername`)
+    return;
+  }
 
   return passport.authenticate(
     'google', { state: state, scope: ['profile', 'email'], session: false }
@@ -55,6 +70,10 @@ authRouter.get("/api/auth/login/google/callback", async (ctx: Context, next: Nex
 
 authRouter.get("/api/auth/login/kakao", async function (ctx: Context, next: Next) {
   const state = parseUsername(ctx);
+  if (state === null) {
+    ctx.redirect(`${process.env.FRONTEND_URL}?error=InvalidUsername`)
+    return;
+  }
 
   return passport.authenticate('kakao', 
     { state: state, session: false }
@@ -86,6 +105,10 @@ authRouter.get("/api/auth/login/kakao/callback", async (ctx: Context, next: Next
 
 authRouter.get("/api/auth/login/naver", async function (ctx: Context, next: Next) {
   const state = parseUsername(ctx);
+  if (state === null) {
+    ctx.redirect(`${process.env.FRONTEND_URL}?error=InvalidUsername`)
+    return;
+  }
 
   return passport.authenticate('naver', 
     { state: state, session: false }
@@ -244,11 +267,20 @@ authRouter.post("/api/auth/check-username", async (ctx: Context, next: Next) => 
   const parsed = z.object({ username: z.string() }).safeParse(ctx.request.body);
   ctx.assert(parsed.success, 400, "Failed to find username");
 
-  const user = await UserModel.findOne({ username: parsed.data.username }).lean().exec();
+  // Rule violations answer 200 + available:false (not 400) so older clients
+  // that only read `available` keep working; `reason` tells newer ones why.
+  const usernameParsed = usernameSchema.safeParse(parsed.data.username);
+  if (!usernameParsed.success) {
+    ctx.status = 200;
+    ctx.body = { available: false, reason: "InvalidUsername" };
+    return;
+  }
+
+  const user = await UserModel.findOne({ username: usernameParsed.data }).lean().exec();
 
   ctx.status = 200;
   if (user) {
-    ctx.body = { available: false };
+    ctx.body = { available: false, reason: "DuplicateUsername" };
   } else {
     ctx.body = { available: true };
   }

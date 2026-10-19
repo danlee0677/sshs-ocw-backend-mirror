@@ -63,7 +63,7 @@ userRouter.patch('/api/user',
     if (parsed.data.description !== undefined) query["description"] = parsed.data.description;
     if (parsed.data.pfp_url !== undefined) query["pfp_url"] = parsed.data.pfp_url
 
-    const updated = await UserModel.findByIdAndUpdate(ctx.state.user._id, query, { new: true });
+    const updated = await UserModel.findByIdAndUpdate(ctx.state.user._id, query, { new: true, runValidators: true });
 
     ctx.assert(updated, 404);
     ctx.status = 200;

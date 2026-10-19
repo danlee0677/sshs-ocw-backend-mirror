@@ -3,6 +3,7 @@ import { UserModel } from '../user/userModel';
 import { ProviderModel } from './providerModel';
 import jwt, { type Secret } from 'jsonwebtoken';
 import z from 'zod';
+import { usernameSchema } from '../user/userType';
 
 
 export var googleStrategy = new GoogleStrategy({
@@ -42,13 +43,18 @@ export var googleStrategy = new GoogleStrategy({
     if (parsed.data.username.length === 0)
       return cb(new Error("NoUsername"));
 
-    const usernameExists = await UserModel.exists({ username: parsed.data.username });
+    const usernameParsed = usernameSchema.safeParse(parsed.data.username);
+    if (!usernameParsed.success)
+      return cb(new Error("InvalidUsername"));
+    const username = usernameParsed.data;
+
+    const usernameExists = await UserModel.exists({ username: username });
     if (usernameExists)
       return cb(new Error("DuplicateUsername"))
 
     // create new user
     const new_user = await UserModel.create({
-      username: parsed.data.username,
+      username: username,
       roles: ['user'],
       liked_subject: [],
       achievement: [],
@@ -71,7 +77,9 @@ export var googleStrategy = new GoogleStrategy({
       email: new_user.email,
       description: new_user.description,
     });
-  } catch (err) {
+  } catch (err: any) {
+    // Lost the race between the exists() check and create(): unique index on username
+    if (err?.code === 11000) return cb(new Error("DuplicateUsername"));
     console.log(err)
     return await cb(err);
   }

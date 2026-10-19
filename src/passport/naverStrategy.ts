@@ -3,6 +3,7 @@ import { UserModel } from "../user/userModel";
 import { ProviderModel } from "./providerModel";
 import jwt, { type Secret } from 'jsonwebtoken';
 import z from "zod";
+import { usernameSchema } from "../user/userType";
 import { describe } from "node:test";
 
 export var naverStrategy = new NaverStrategy({
@@ -40,13 +41,18 @@ export var naverStrategy = new NaverStrategy({
 
     if (parsed.data.username.length === 0)
       return cb(new Error("NoUsername"));
+
+    const usernameParsed = usernameSchema.safeParse(parsed.data.username);
+    if (!usernameParsed.success)
+      return cb(new Error("InvalidUsername"));
+    const username = usernameParsed.data;
     
-    const usernameExists = await UserModel.exists({ username: parsed.data.username });
+    const usernameExists = await UserModel.exists({ username: username });
     if (usernameExists)
       return cb(new Error("DuplicateUsername"));
 
     const new_user = await UserModel.create({
-      username: parsed.data.username,
+      username: username,
       roles: ['user'],
       liked_subject: [],
       achievement: [],
@@ -70,7 +76,9 @@ export var naverStrategy = new NaverStrategy({
       email: new_user.email,
       description: new_user.description,
     });
-  } catch (err) {
+  } catch (err: any) {
+    // Lost the race between the exists() check and create(): unique index on username
+    if (err?.code === 11000) return cb(new Error("DuplicateUsername"));
     console.log(err);
     return cb(err);
   }
