@@ -9,18 +9,30 @@ import { canEditSubject } from "../permission/permissionRouter";
 
 const mentoringRouter = new Router();
 
+// Rendered as href/src on the frontend. Blocks javascript:/data: etc.
+// "" stays allowed: registration and files.url default to "" in the model.
+const linkSchema = z.string().refine((val) => {
+  if (val === "") return true
+  try {
+    const protocol = new URL(val).protocol
+    return protocol === "https:" || protocol === "http:"
+  } catch {
+    return false
+  }
+})
+
 const mentoringSchema = z.object({
   title: z.string(),
-  image_url: z.string(),
+  image_url: linkSchema,
   description: z.string(),
   tags: z.array(z.string()),
   content: z.string(),
   files: z.array(z.object({
     name: z.string(),
-    url: z.string(),
+    url: linkSchema,
   })),
   createdBy: z.array(z.string()),
-  registration: z.string(),
+  registration: linkSchema,
 })
 
 mentoringRouter.get('/api/mentoring', 
